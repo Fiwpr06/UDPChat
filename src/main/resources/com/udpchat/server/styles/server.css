@@ -1,0 +1,22 @@
+/* Server specific styles */
+.status-indicator {
+    -fx-min-width: 12px;
+    -fx-min-height: 12px;
+    -fx-max-width: 12px;
+    -fx-max-height: 12px;
+    -fx-background-radius: 6px;
+}
+
+.status-online {
+    -fx-background-color: #4CAF50;
+    -fx-effect: dropshadow(gaussian, #4CAF50, 5, 0, 0, 0);
+}
+
+.status-offline {
+    -fx-background-color: #F44336;
+}
+
+.mono-text {
+    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-size: 12px;
+}

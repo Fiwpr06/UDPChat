@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.udpchat.server.controller.ServerController"
+      styleClass="root" spacing="10">
+    <padding>
+        <Insets top="15" right="15" bottom="15" left="15"/>
+    </padding>
+
+    <!-- Title Bar -->
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label text="UDP Server" styleClass="section-title"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="12" prefHeight="12" style="-fx-background-radius: 6;"/>
+        <Label fx:id="statusLabel" text="Stopped"/>
+    </HBox>
+
+    <!-- Server Control -->
+    <HBox styleClass="section-panel" spacing="10" alignment="CENTER_LEFT">
+        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <Label text="Port:"/>
+        <TextField fx:id="portField" prefWidth="80"/>
+        <Button fx:id="startButton" text="Start Server" onAction="#onStart"/>
+        <Button fx:id="stopButton" text="Stop Server" onAction="#onStop"/>
+    </HBox>
+
+    <!-- Online Clients -->
+    <VBox styleClass="section-panel" spacing="5">
+        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <Label fx:id="onlineCountLabel" text="Online: 0" style="-fx-font-weight: bold;"/>
+        <ListView fx:id="clientListView" prefHeight="120"/>
+    </VBox>
+
+    <!-- Activity Log -->
+    <VBox styleClass="section-panel" spacing="5" VBox.vgrow="ALWAYS">
+        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <Label text="Activity Log" style="-fx-font-weight: bold;"/>
+        <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area, mono-text"/>
+    </VBox>
+</VBox>
