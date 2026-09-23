@@ -25,13 +25,13 @@ public class AuthService {
     public String register(String username, String password) {
         Path userFile = usersDir.resolve(username + ".txt");
         if (Files.exists(userFile)) {
-            return "Error: User already exists";
+            return "Lỗi: Tài khoản '" + username + "' đã tồn tại";
         }
         try {
-            Files.writeString(userFile, "password=" + password);
-            return "Success: User registered";
+            Files.writeString(userFile, "password=" + password, java.nio.charset.StandardCharsets.UTF_8);
+            return "Thành công: Đăng ký tài khoản '" + username + "' thành công";
         } catch (IOException e) {
-            return "Error: Could not save user";
+            return "Lỗi: Không thể lưu thông tin tài khoản";
         }
     }
 
@@ -39,27 +39,27 @@ public class AuthService {
     public String login(String username, String password, InetAddress addr, int reqPort, int listenerPort) {
         Path userFile = usersDir.resolve(username + ".txt");
         if (!Files.exists(userFile)) {
-            return "Error: User not found";
+            return "Lỗi: Tài khoản '" + username + "' không tồn tại";
         }
         try {
-            String content = Files.readString(userFile);
+            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
             if (content.trim().equals("password=" + password)) {
                 String sessionKey = makeSessionKey(addr, reqPort);
                 ClientSession session = new ClientSession(username, addr, reqPort, listenerPort);
                 onlineSessions.put(sessionKey, session);
-                return "Success: Logged in";
+                return "Thành công: Đăng nhập thành công";
             } else {
-                return "Error: Incorrect password";
+                return "Lỗi: Mật khẩu không chính xác";
             }
         } catch (IOException e) {
-            return "Error: Login failed";
+            return "Lỗi: Quá trình xác thực đăng nhập thất bại";
         }
     }
 
     // Đăng xuất
     public String logout(String sessionKey) {
         onlineSessions.remove(sessionKey);
-        return "Success: Logged out";
+        return "Thành công: Đã đăng xuất";
     }
 
     public boolean isLoggedIn(String sessionKey) {

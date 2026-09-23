@@ -20,7 +20,7 @@ public class ServerNetwork {
         try {
             socket = new DatagramSocket(port);
             running = true;
-            logger.accept("Server started on port " + port);
+            logger.accept("UDP Server đã khởi động và lắng nghe trên cổng " + port);
 
             while (running) {
                 try {
@@ -40,7 +40,7 @@ public class ServerNetwork {
                 }
             }
         } catch (SocketException e) {
-            logger.accept("Could not bind to port " + port);
+            logger.accept("Lỗi: Không thể liên kết (bind) tới cổng " + port);
         }
     }
 
@@ -49,7 +49,7 @@ public class ServerNetwork {
         if (socket != null && !socket.isClosed()) {
             socket.close();
         }
-        logger.accept("Server stopped.");
+        logger.accept("UDP Server đã dừng hoạt động.");
     }
 
     public boolean isRunning() {

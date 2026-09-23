@@ -25,7 +25,7 @@ public class MessageService {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         Message msg = new Message(ip, senderName, timestamp, content);
         try {
-            Files.writeString(logFile, msg.toStorageString() + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            Files.writeString(logFile, msg.toStorageString() + System.lineSeparator(), java.nio.charset.StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             e.printStackTrace();
         }

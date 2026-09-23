@@ -1,6 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+chcp 65001 >nul
 
 echo ========================================================
 echo   UDP CHAT SYSTEM - CHAY DEMO (1 SERVER + 2 CLIENTS)
