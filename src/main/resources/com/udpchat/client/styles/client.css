@@ -1,0 +1,21 @@
+/* client.css - Client specific tweaks for Amber Signal theme */
+
+.status-indicator {
+    -fx-background-radius: 50%;
+    -fx-min-width: 12px;
+    -fx-min-height: 12px;
+    -fx-max-width: 12px;
+    -fx-max-height: 12px;
+}
+
+.status-online {
+    -fx-background-color: #4CAF50; /* Green */
+}
+
+.status-offline {
+    -fx-background-color: #888888; /* Gray */
+}
+
+.mono-text {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+}
