@@ -1,10 +1,14 @@
 package com.udpchat.client.controller;
 
 import com.udpchat.client.service.ClientService;
+import com.udpchat.shared.util.UDPUtil;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
@@ -17,12 +21,18 @@ import java.time.format.DateTimeFormatter;
 public class ClientController {
 
     @FXML private TextField serverHostField;
+    @FXML private Button copyServerIpButton;
     @FXML private TextField portField;
+    @FXML private Label myIpLabel;
+    @FXML private Button copyMyIpButton;
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     @FXML private TextField filenameField;
     @FXML private TextArea chatArea;
+    @FXML private VBox logContainer;
     @FXML private TextArea logArea;
+    @FXML private Button toggleLogButton;
+    @FXML private Button clearLogButton;
     @FXML private Button registerButton;
     @FXML private Button loginButton;
     @FXML private Button logoutButton;
@@ -41,6 +51,7 @@ public class ClientController {
     public void initialize() {
         serverHostField.setText("localhost");
         portField.setText("8888");
+        myIpLabel.setText(UDPUtil.getLocalIPAddress());
         chatArea.setEditable(false);
         logArea.setEditable(false);
         setLoggedInState(false);
@@ -79,6 +90,46 @@ public class ClientController {
     }
 
     @FXML
+    private void onCopyServerIp() {
+        String host = serverHostField.getText().trim();
+        if (host.isEmpty()) host = "localhost";
+        copyToClipboard(host, copyServerIpButton, "📋 Copy");
+    }
+
+    @FXML
+    private void onCopyMyIp() {
+        String ip = myIpLabel.getText().trim();
+        copyToClipboard(ip, copyMyIpButton, "📋 Copy");
+    }
+
+    @FXML
+    private void onToggleLog() {
+        boolean isVisible = logArea.isVisible();
+        logArea.setVisible(!isVisible);
+        logArea.setManaged(!isVisible);
+        toggleLogButton.setText(!isVisible ? "👁️ Ẩn Log" : "👁️ Hiện Log");
+    }
+
+    @FXML
+    private void onClearLog() {
+        logArea.clear();
+        addLogMessage("Đã xóa nhật ký hiển thị trên màn hình.");
+    }
+
+    private void copyToClipboard(String text, Button btn, String originalText) {
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        clipboard.setContent(content);
+
+        btn.setText("✓ Đã copy!");
+        new Thread(() -> {
+            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+            Platform.runLater(() -> btn.setText(originalText));
+        }).start();
+    }
+
+    @FXML
     private void onRegister() {
         String username = usernameField.getText().trim();
         String password = passwordField.getText().trim();
@@ -95,7 +146,7 @@ public class ClientController {
                 }
                 service.register(username, password);
             } catch (Exception e) {
-                addLogMessage("Lỗi khởi tạo service: " + e.getMessage());
+                addLogMessage("Lỗi khởi tạo dịch vụ: " + e.getMessage());
             }
         }).start();
     }
@@ -124,7 +175,7 @@ public class ClientController {
                     Platform.runLater(() -> setLoggedInState(true));
                 }
             } catch (Exception e) {
-                addLogMessage("Lỗi đăng nhập: " + e.getMessage());
+                addLogMessage("Lỗi kết nối khi đăng nhập: " + e.getMessage());
             }
         }).start();
     }
@@ -148,7 +199,7 @@ public class ClientController {
             String resp = service.sendMessage(msg);
             if (resp.startsWith("RESPONSE|OK")) {
                 String time = LocalTime.now().format(timeFormatter);
-                addChatMessage("[" + time + "] me: " + msg);
+                addChatMessage("[" + time + "] Tôi (me): " + msg);
                 Platform.runLater(() -> messageField.clear());
             }
         }).start();
@@ -158,7 +209,7 @@ public class ClientController {
     private void onUpload() {
         Window window = uploadButton.getScene().getWindow();
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Chọn file để upload");
+        fileChooser.setTitle("Chọn file để tải lên Server");
         File file = fileChooser.showOpenDialog(window);
 
         if (file != null) {
@@ -172,13 +223,13 @@ public class ClientController {
     private void onDownload() {
         String filename = filenameField.getText().trim();
         if (filename.isEmpty()) {
-            addLogMessage("Vui lòng nhập tên file cần download.");
+            addLogMessage("Vui lòng nhập tên file cần tải xuống.");
             return;
         }
 
         Window window = downloadButton.getScene().getWindow();
         DirectoryChooser directoryChooser = new DirectoryChooser();
-        directoryChooser.setTitle("Chọn thư mục lưu file");
+        directoryChooser.setTitle("Chọn thư mục lưu file tải về");
         File dir = directoryChooser.showDialog(window);
 
         if (dir != null) {

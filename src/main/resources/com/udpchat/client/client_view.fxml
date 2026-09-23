@@ -6,7 +6,7 @@
 
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" 
       fx:controller="com.udpchat.client.controller.ClientController" spacing="10" 
-      style="-fx-background-color: #121212;">
+      styleClass="root">
     <padding>
         <Insets top="15" right="15" bottom="15" left="15"/>
     </padding>
@@ -15,59 +15,74 @@
     <HBox alignment="CENTER_LEFT" spacing="10">
         <Label text="UDP Client" styleClass="section-title"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="12" prefHeight="12"/>
-        <Label fx:id="statusLabel" text="OFFLINE" textFill="#888888" style="-fx-font-weight: bold;"/>
+        <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="12" prefHeight="12" style="-fx-background-radius: 6;"/>
+        <Label fx:id="statusLabel" text="OFFLINE" style="-fx-font-weight: bold;"/>
     </HBox>
 
-    <!-- Connection Section -->
-    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="section-panel">
-        <Label text="Server:" textFill="#dddddd"/>
-        <TextField fx:id="serverHostField" promptText="localhost"/>
-        <Label text="Port:" textFill="#dddddd"/>
-        <TextField fx:id="portField" prefWidth="70" promptText="8888"/>
+    <!-- Connection Section with IP Display & Copy -->
+    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="section-panel">
+        <Label text="Server IP:"/>
+        <TextField fx:id="serverHostField" prefWidth="110" promptText="localhost / IP"/>
+        <Button fx:id="copyServerIpButton" text="📋 Copy" onAction="#onCopyServerIp" styleClass="button-secondary"/>
+
+        <Label text="Port:"/>
+        <TextField fx:id="portField" prefWidth="65" promptText="8888"/>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Label text="IP máy tôi:"/>
+        <Label fx:id="myIpLabel" text="127.0.0.1" styleClass="badge-ip"/>
+        <Button fx:id="copyMyIpButton" text="📋 Copy" onAction="#onCopyMyIp" styleClass="button-secondary"/>
     </HBox>
 
     <!-- Authentication Section -->
-    <VBox spacing="10" styleClass="section-panel">
+    <VBox spacing="8" styleClass="section-panel">
         <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="Username:" textFill="#dddddd" prefWidth="70"/>
-            <TextField fx:id="usernameField" promptText="Username"/>
+            <Label text="Tài khoản:" prefWidth="75"/>
+            <TextField fx:id="usernameField" promptText="Tên đăng nhập" HBox.hgrow="ALWAYS"/>
+            <Label text="Mật khẩu:" prefWidth="70"/>
+            <PasswordField fx:id="passwordField" promptText="Mật khẩu" HBox.hgrow="ALWAYS"/>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="Password:" textFill="#dddddd" prefWidth="70"/>
-            <PasswordField fx:id="passwordField" promptText="Password"/>
-        </HBox>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Button fx:id="registerButton" text="Register" onAction="#onRegister"/>
-            <Button fx:id="loginButton" text="Login" onAction="#onLogin"/>
-            <Button fx:id="logoutButton" text="Logout" onAction="#onLogout"/>
+            <Button fx:id="registerButton" text="Đăng ký" onAction="#onRegister"/>
+            <Button fx:id="loginButton" text="Đăng nhập" onAction="#onLogin"/>
+            <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout"/>
         </HBox>
     </VBox>
 
     <!-- Chat Section -->
-    <VBox spacing="10" VBox.vgrow="ALWAYS" styleClass="section-panel">
+    <VBox spacing="8" VBox.vgrow="ALWAYS" styleClass="section-panel">
+        <HBox alignment="CENTER_LEFT">
+            <Label text="Kênh Chat (Chuyển tiếp qua Server)" style="-fx-font-weight: bold;"/>
+        </HBox>
         <TextArea fx:id="chatArea" VBox.vgrow="ALWAYS" prefRowCount="8" editable="false" styleClass="chat-area"/>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Type a message..."/>
-            <Button fx:id="sendButton" text="Send" onAction="#onSendMessage"/>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..."/>
+            <Button fx:id="sendButton" text="Gửi" onAction="#onSendMessage" defaultButton="true"/>
         </HBox>
     </VBox>
 
     <!-- File Transfer Section -->
-    <VBox spacing="10" styleClass="section-panel">
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Button fx:id="uploadButton" text="Upload File" onAction="#onUpload"/>
-            <Button fx:id="downloadButton" text="Download" onAction="#onDownload"/>
-            <Label text="Filename:" textFill="#dddddd"/>
-            <TextField fx:id="filenameField" HBox.hgrow="ALWAYS" promptText="File to download"/>
+    <VBox spacing="8" styleClass="section-panel">
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Button fx:id="uploadButton" text="Tải lên File" onAction="#onUpload"/>
+            <Region prefWidth="10"/>
+            <Button fx:id="downloadButton" text="Tải xuống" onAction="#onDownload"/>
+            <Label text="Tên file:"/>
+            <TextField fx:id="filenameField" HBox.hgrow="ALWAYS" promptText="Tên file trên server để tải xuống"/>
         </HBox>
         <ProgressBar fx:id="progressBar" maxWidth="MAX_VALUE" progress="0.0"/>
     </VBox>
 
-    <!-- Activity Log Section -->
-    <VBox spacing="10" styleClass="section-panel">
-        <Label text="Activity Log" textFill="#dddddd"/>
-        <TextArea fx:id="logArea" prefRowCount="5" editable="false" styleClass="log-area, mono-text"/>
+    <!-- Activity Log Section with Toggle & Clear -->
+    <VBox fx:id="logContainer" spacing="6" styleClass="section-panel">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Nhật ký hoạt động (Activity Log)" style="-fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary"/>
+            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary"/>
+        </HBox>
+        <TextArea fx:id="logArea" prefRowCount="4" editable="false" styleClass="log-area, mono-text"/>
     </VBox>
 
 </VBox>

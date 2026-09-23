@@ -26,4 +26,17 @@ public class UDPUtil {
         
         return new String[] { message, senderIP, senderPort };
     }
+
+    public static String getLocalIPAddress() {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            return socket.getLocalAddress().getHostAddress();
+        } catch (Exception e) {
+            try {
+                return InetAddress.getLocalHost().getHostAddress();
+            } catch (Exception ex) {
+                return "127.0.0.1";
+            }
+        }
+    }
 }

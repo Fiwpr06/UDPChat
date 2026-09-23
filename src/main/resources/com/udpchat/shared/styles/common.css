@@ -179,17 +179,49 @@
 }
 
 .mono-text {
-    -fx-font-family: "Consolas", monospace;
+    -fx-font-family: "Consolas", "Segoe UI", monospace;
 }
 
 .chat-area {
+    -fx-font-family: "Segoe UI", sans-serif;
     -fx-font-size: 13px;
     -fx-control-inner-background: #0F0F1E;
 }
 
 .log-area {
-    -fx-font-family: "Consolas", monospace;
+    -fx-font-family: "Consolas", "Segoe UI", monospace;
     -fx-font-size: 12px;
+}
+
+.button-secondary {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #2A2A4A;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-text-fill: #E8E4D9;
+    -fx-padding: 3px 8px;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+
+.button-secondary:hover {
+    -fx-background-color: #1F2E54;
+    -fx-border-color: #C8A84E;
+    -fx-text-fill: #C8A84E;
+}
+
+.badge-ip {
+    -fx-background-color: #0F0F1E;
+    -fx-border-color: #C8A84E;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 2px 6px;
+    -fx-font-family: "Consolas", "Segoe UI", monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: #C8A84E;
+    -fx-font-weight: bold;
 }
 
 /* Status Indicators */
