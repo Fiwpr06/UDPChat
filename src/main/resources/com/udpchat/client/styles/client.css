@@ -1,21 +1,183 @@
-/* client.css - Client specific tweaks for Amber Signal theme */
+/* ==========================================================================
+   client.css - Specific Client UI Styling (Cyber Gold & Obsidian)
+   ========================================================================== */
 
-.status-indicator {
-    -fx-background-radius: 50%;
-    -fx-min-width: 12px;
-    -fx-min-height: 12px;
-    -fx-max-width: 12px;
-    -fx-max-height: 12px;
+/* Main Workspace Root */
+.main-workspace {
+    -fx-background-color: #0B0F19;
 }
 
-.status-online {
-    -fx-background-color: #4CAF50; /* Green */
+/* Left Sidebar */
+.sidebar-panel {
+    -fx-background-color: #0E1422;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 1px 0 0;
 }
 
-.status-offline {
-    -fx-background-color: #888888; /* Gray */
+.user-profile-card {
+    -fx-background-color: #090D17;
+    -fx-border-color: #1A2436;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
 }
 
-.mono-text {
-    -fx-font-family: "Consolas", "Courier New", monospace;
+.avatar-circle {
+    -fx-background-color: linear-gradient(to bottom right, #F59E0B, #B45309);
+    -fx-background-radius: 19px;
+    -fx-min-width: 38px;
+    -fx-min-height: 38px;
+    -fx-max-width: 38px;
+    -fx-max-height: 38px;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.3), 6, 0, 0, 0);
+}
+
+.avatar-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0B0F19;
+}
+
+.user-name-label {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.user-status-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #10B981;
+}
+
+.sidebar-section-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #64748B;
+    -fx-padding: 4px 6px;
+}
+
+/* Auth Segmented Tab Switcher */
+.tab-switcher {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 3px;
+}
+
+.tab-btn {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 12px;
+    -fx-font-weight: normal;
+    -fx-padding: 6px 12px;
+    -fx-cursor: hand;
+}
+
+.tab-btn:hover {
+    -fx-text-fill: #F1F5F9;
+}
+
+.tab-btn-active {
+    -fx-background-color: #16202E;
+    -fx-border-color: #27354A;
+    -fx-border-width: 1px;
+    -fx-text-fill: #F59E0B;
+    -fx-font-weight: bold;
+}
+
+/* Workspace Center & Header */
+.workspace-content {
+    -fx-background-color: #0B0F19;
+}
+
+.workspace-header {
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 0 0 10px 0;
+}
+
+.workspace-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.workspace-subtitle {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-text-fill: #64748B;
+}
+
+.chat-input-bar {
+    -fx-padding: 6px 0 0 0;
+}
+
+/* Right Drawer Panel: Channel Media & Files */
+.channel-panel {
+    -fx-background-color: #0D131F;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 0 1px;
+    -fx-pref-width: 270px;
+    -fx-max-width: 270px;
+}
+
+.channel-panel-header {
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 10px 14px;
+}
+
+.channel-section-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #94A3B8;
+    -fx-padding: 6px 0 2px 0;
+}
+
+.gallery-flow-pane {
+    -fx-hgap: 8px;
+    -fx-vgap: 8px;
+    -fx-padding: 4px;
+}
+
+.gallery-item {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-cursor: hand;
+}
+
+.gallery-item:hover {
+    -fx-border-color: #F59E0B;
+}
+
+.file-list-item {
+    -fx-background-color: #111826;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 6px 8px;
+}
+
+.mini-log-box, .mini-log-box .content {
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11px;
+    -fx-control-inner-background: #060910;
+    -fx-text-fill: #6EE7B7;
 }

@@ -16,7 +16,13 @@ public class ClientService {
     private ClientListener listener;
     private Thread listenerThread;
     private String currentUsername;
+    @FunctionalInterface
+    public interface StructuredMessageConsumer {
+        void accept(String sender, String time, String content);
+    }
+
     private Consumer<String> onIncomingMessage;
+    private StructuredMessageConsumer onIncomingStructuredMessage;
     private Consumer<String> onLogMessage;
     
     private String serverHost;
@@ -30,6 +36,10 @@ public class ClientService {
 
     public void setOnIncomingMessage(Consumer<String> onIncomingMessage) {
         this.onIncomingMessage = onIncomingMessage;
+    }
+
+    public void setOnIncomingStructuredMessage(StructuredMessageConsumer consumer) {
+        this.onIncomingStructuredMessage = consumer;
     }
 
     public void setOnLogMessage(Consumer<String> onLogMessage) {
@@ -54,6 +64,9 @@ public class ClientService {
                 String display = "[" + time + "] " + sender + ": " + content;
                 if (onIncomingMessage != null) {
                     onIncomingMessage.accept(display);
+                }
+                if (onIncomingStructuredMessage != null) {
+                    onIncomingStructuredMessage.accept(sender, time, content);
                 }
             }
         }
@@ -119,6 +132,10 @@ public class ClientService {
     }
 
     public String uploadFile(File file) {
+        return uploadFile(file, null);
+    }
+
+    public String uploadFile(File file, Consumer<Double> onProgress) {
         if (!isLoggedIn()) return "ERROR|Chưa đăng nhập";
         try {
             int totalChunks = (int) Math.ceil((double) file.length() / UDPConstants.CHUNK_DATA_SIZE);
@@ -128,7 +145,7 @@ public class ClientService {
             String response = network.sendRequest(request);
             
             if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
-                network.sendFileChunks(file, network.getServerAddress(), network.getServerPort());
+                network.sendFileChunks(file, network.getServerAddress(), network.getServerPort(), onProgress);
                 log("Tải lên file '" + file.getName() + "' thành công!");
                 return "OK|File uploaded";
             } else {
@@ -142,6 +159,10 @@ public class ClientService {
     }
 
     public String downloadFile(String filename, File saveLocation) {
+        return downloadFile(filename, saveLocation, null);
+    }
+
+    public String downloadFile(String filename, File saveLocation, Consumer<Double> onProgress) {
         if (!isLoggedIn()) return "ERROR|Chưa đăng nhập";
         try {
             String request = ProtocolHelper.buildRequest(Command.DOWNLOAD, filename);
@@ -154,7 +175,7 @@ public class ClientService {
                 
                 File outputFile = new File(saveLocation, filename);
                 log("Bắt đầu nhận " + totalChunks + " phần dữ liệu...");
-                network.receiveFileChunks(totalChunks, outputFile);
+                network.receiveFileChunks(totalChunks, outputFile, onProgress);
                 log("Tải file '" + filename + "' thành công! Lưu tại: " + outputFile.getAbsolutePath());
                 return "OK|File downloaded";
             } else {
@@ -191,6 +212,14 @@ public class ClientService {
 
     public String getCurrentUsername() {
         return currentUsername;
+    }
+
+    public String getServerHost() {
+        return serverHost;
+    }
+
+    public int getServerPort() {
+        return serverPort;
     }
 
     public void close() {

@@ -7,55 +7,62 @@
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.udpchat.server.controller.ServerController"
-      styleClass="root" spacing="10">
+      styleClass="app-root" spacing="12">
     <padding>
-        <Insets top="15" right="15" bottom="15" left="15"/>
+        <Insets top="16" right="16" bottom="16" left="16"/>
     </padding>
 
-    <!-- Title Bar -->
-    <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="UDP Server" styleClass="section-title"/>
+    <!-- Title Bar Header -->
+    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="card-panel">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+        <Label text="UDP" styleClass="brand-icon-badge"/>
+        <VBox spacing="2">
+            <Label text="UDP CHAT SERVER" styleClass="brand-title-medium"/>
+            <Label text="Máy chủ định tuyến tin nhắn tức thời &amp; Quản lý kho tệp UDP" styleClass="brand-subtitle"/>
+        </VBox>
         <Region HBox.hgrow="ALWAYS"/>
-        <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="12" prefHeight="12" style="-fx-background-radius: 6;"/>
-        <Label fx:id="statusLabel" text="Stopped"/>
+        <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
+            <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="10" prefHeight="10"/>
+            <Label fx:id="statusLabel" text="Đã dừng" styleClass="status-badge-text"/>
+        </HBox>
     </HBox>
 
     <!-- Server Control & IP Display -->
-    <HBox styleClass="section-panel" spacing="10" alignment="CENTER_LEFT">
-        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+    <HBox styleClass="card-panel" spacing="12" alignment="CENTER_LEFT">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         
-        <Label text="IP Máy chủ:"/>
+        <Label text="IP Máy chủ:" styleClass="input-label"/>
         <Label fx:id="ipLabel" text="127.0.0.1" styleClass="badge-ip"/>
-        <Button fx:id="copyIpButton" text="📋 Copy IP" onAction="#onCopyIp" styleClass="button-secondary" minWidth="-Infinity"/>
+        <Button fx:id="copyIpButton" text="Sao chép IP" onAction="#onCopyIp" styleClass="button-secondary" minWidth="-Infinity"/>
 
         <Region HBox.hgrow="ALWAYS"/>
         
-        <Label text="Cổng (Port):"/>
-        <TextField fx:id="portField" prefWidth="75"/>
-        <Button fx:id="startButton" text="Start Server" onAction="#onStart" minWidth="-Infinity"/>
-        <Button fx:id="stopButton" text="Stop Server" onAction="#onStop" minWidth="-Infinity"/>
+        <Label text="Cổng (Port):" styleClass="input-label"/>
+        <TextField fx:id="portField" text="8888" prefWidth="85" styleClass="form-input"/>
+        <Button fx:id="startButton" text="Khởi động Server" onAction="#onStart" styleClass="button-primary" minWidth="-Infinity"/>
+        <Button fx:id="stopButton" text="Dừng Server" onAction="#onStop" styleClass="button-danger" minWidth="-Infinity"/>
     </HBox>
 
     <!-- Online Clients -->
-    <VBox styleClass="section-panel" spacing="6">
-        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+    <VBox styleClass="card-panel" spacing="8">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label fx:id="onlineCountLabel" text="Online: 0" style="-fx-font-weight: bold;"/>
+            <Label fx:id="onlineCountLabel" text="Danh sách Client đang online: 0" styleClass="card-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="copyClientIpButton" text="📋 Copy IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="copyClientIpButton" text="Sao chép IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
-        <ListView fx:id="clientListView" prefHeight="130"/>
+        <ListView fx:id="clientListView" prefHeight="130" styleClass="modern-list-view"/>
     </VBox>
 
     <!-- Activity Log -->
-    <VBox fx:id="logContainer" styleClass="section-panel" spacing="6" VBox.vgrow="ALWAYS">
-        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+    <VBox fx:id="logContainer" styleClass="card-panel" spacing="8" VBox.vgrow="ALWAYS">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="Nhật ký hoạt động mạng (Activity Log)" style="-fx-font-weight: bold;"/>
+            <Label text="Nhật Ký Hoạt Động &amp; Gói Tin Mạng" styleClass="card-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="openLogFileButton" text="📂 Mở file Log" onAction="#onOpenLogFile" styleClass="button-secondary" minWidth="-Infinity"/>
-            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
-            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="openLogFileButton" text="Mở file Log" onAction="#onOpenLogFile" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="toggleLogButton" text="Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="clearLogButton" text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
         <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area, mono-text"/>
     </VBox>

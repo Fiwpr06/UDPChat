@@ -4,85 +4,250 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" 
-      fx:controller="com.udpchat.client.controller.ClientController" spacing="10" 
-      styleClass="root">
-    <padding>
-        <Insets top="15" right="15" bottom="15" left="15"/>
-    </padding>
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.udpchat.client.controller.ClientController"
+           styleClass="app-root">
 
-    <!-- Title Bar -->
-    <HBox alignment="CENTER_LEFT" spacing="10">
-        <Label text="UDP Client" styleClass="section-title"/>
-        <Region HBox.hgrow="ALWAYS"/>
-        <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="12" prefHeight="12" style="-fx-background-radius: 6;"/>
-        <Label fx:id="statusLabel" text="OFFLINE" style="-fx-font-weight: bold;"/>
-    </HBox>
+    <!-- ============================================== -->
+    <!-- SCREEN 1: KẾT NỐI SERVER (CONNECTION GATEWAY)  -->
+    <!-- ============================================== -->
+    <VBox fx:id="connectScreen" alignment="CENTER" spacing="0" styleClass="screen-container">
+        <padding><Insets top="30" right="30" bottom="30" left="30"/></padding>
+        <VBox alignment="CENTER" spacing="20" maxWidth="460" styleClass="card-panel, entrance-card">
+            <padding><Insets top="28" right="28" bottom="28" left="28"/></padding>
 
-    <!-- Connection Section with IP Display & Copy -->
-    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="section-panel">
-        <Label text="Server IP:"/>
-        <TextField fx:id="serverHostField" prefWidth="110" promptText="localhost / IP"/>
-        <Button fx:id="copyServerIpButton" text="📋 Copy" onAction="#onCopyServerIp" styleClass="button-secondary"/>
+            <!-- App Logo / Badge -->
+            <VBox alignment="CENTER" spacing="6">
+                <HBox alignment="CENTER" spacing="10">
+                    <Label text="UDP" styleClass="brand-icon-badge"/>
+                    <Label text="UDP CHAT" styleClass="brand-title"/>
+                </HBox>
+                <Label text="Hệ thống Trò chuyện &amp; Truyền tệp qua giao thức UDP" styleClass="brand-subtitle"/>
+            </VBox>
 
-        <Label text="Port:"/>
-        <TextField fx:id="portField" prefWidth="65" promptText="8888"/>
+            <Separator styleClass="panel-separator"/>
 
-        <Region HBox.hgrow="ALWAYS"/>
+            <!-- Step Title -->
+            <VBox alignment="CENTER_LEFT" spacing="4">
+                <Label text="Bước 1: Kết nối tới Máy chủ" styleClass="card-title"/>
+                <Label text="Nhập địa chỉ IP và Cổng (Port) của máy chủ UDP để bắt đầu." styleClass="card-desc"/>
+            </VBox>
 
-        <Label text="IP máy tôi:"/>
-        <Label fx:id="myIpLabel" text="127.0.0.1" styleClass="badge-ip"/>
-        <Button fx:id="copyMyIpButton" text="📋 Copy" onAction="#onCopyMyIp" styleClass="button-secondary"/>
-    </HBox>
+            <!-- Form -->
+            <VBox spacing="12">
+                <VBox spacing="6">
+                    <Label text="Địa chỉ Máy chủ (Server IP / Host):" styleClass="input-label"/>
+                    <TextField fx:id="serverHostField" text="localhost" promptText="ví dụ: localhost hoặc 192.168.1.100" styleClass="form-input" onAction="#onConnectServer"/>
+                </VBox>
 
-    <!-- Authentication Section -->
-    <VBox spacing="8" styleClass="section-panel">
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="Tài khoản:" prefWidth="75"/>
-            <TextField fx:id="usernameField" promptText="Tên đăng nhập" HBox.hgrow="ALWAYS"/>
-            <Label text="Mật khẩu:" prefWidth="70"/>
-            <PasswordField fx:id="passwordField" promptText="Mật khẩu" HBox.hgrow="ALWAYS" onAction="#onLogin"/>
-        </HBox>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Button fx:id="registerButton" text="Đăng ký" onAction="#onRegister" minWidth="-Infinity"/>
-            <Button fx:id="loginButton" text="Đăng nhập" onAction="#onLogin" minWidth="-Infinity"/>
-            <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout" minWidth="-Infinity"/>
-        </HBox>
+                <VBox spacing="6">
+                    <Label text="Cổng dịch vụ (Port):" styleClass="input-label"/>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <TextField fx:id="portField" text="8888" promptText="8888" prefWidth="120" styleClass="form-input" onAction="#onConnectServer"/>
+                        <Button text="Mặc định: 8888" onAction="#onUseDefaultPort" styleClass="button-secondary" minWidth="-Infinity"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Local IP helper -->
+                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="info-banner">
+                    <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                    <Label text="IP máy của bạn:" styleClass="info-label"/>
+                    <Label fx:id="myIpLabel" text="127.0.0.1" styleClass="badge-ip"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="copyMyIpButton" text="Sao chép" onAction="#onCopyMyIp" styleClass="button-secondary" minWidth="-Infinity"/>
+                </HBox>
+            </VBox>
+
+            <!-- Error Hint -->
+            <Label fx:id="connectErrorLabel" text="" styleClass="error-text" wrapText="true" visible="false" managed="false"/>
+
+            <!-- Connect Action -->
+            <Button fx:id="btnConnectServer" text="Tiếp tục tới Đăng nhập →" onAction="#onConnectServer" maxWidth="Infinity" styleClass="button-primary"/>
+        </VBox>
     </VBox>
 
-    <!-- Chat Section -->
-    <VBox spacing="8" VBox.vgrow="ALWAYS" styleClass="section-panel">
-        <HBox alignment="CENTER_LEFT">
-            <Label text="Kênh Chat (Chuyển tiếp qua Server)" style="-fx-font-weight: bold;"/>
-        </HBox>
-        <TextArea fx:id="chatArea" VBox.vgrow="ALWAYS" prefRowCount="8" editable="false" styleClass="chat-area"/>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..." onAction="#onSendMessage"/>
-            <Button fx:id="sendButton" text="Gửi" onAction="#onSendMessage" defaultButton="true" minWidth="-Infinity"/>
-        </HBox>
+    <!-- ============================================== -->
+    <!-- SCREEN 2: XÁC THỰC (AUTH: LOGIN / REGISTER)    -->
+    <!-- ============================================== -->
+    <VBox fx:id="authScreen" alignment="CENTER" spacing="0" styleClass="screen-container" visible="false" managed="false">
+        <padding><Insets top="30" right="30" bottom="30" left="30"/></padding>
+        <VBox alignment="CENTER" spacing="18" maxWidth="460" styleClass="card-panel, entrance-card">
+            <padding><Insets top="26" right="28" bottom="26" left="28"/></padding>
+
+            <!-- Header with Back & Server Badge -->
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <Button text="← Đổi máy chủ" onAction="#onBackToConnect" styleClass="button-secondary" minWidth="-Infinity"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <HBox alignment="CENTER" spacing="6" styleClass="status-badge-container">
+                    <Region styleClass="status-indicator, status-online"/>
+                    <Label fx:id="authServerBadge" text="localhost:8888" styleClass="status-badge-text"/>
+                </HBox>
+            </HBox>
+
+            <!-- Brand Icon Mini -->
+            <VBox alignment="CENTER" spacing="4">
+                <Label fx:id="authModeTitle" text="Đăng nhập tài khoản" styleClass="brand-title-medium"/>
+                <Label fx:id="authModeSubtitle" text="Nhập tài khoản để tham gia mạng trò chuyện UDP" styleClass="brand-subtitle"/>
+            </VBox>
+
+            <!-- Tab Switcher -->
+            <HBox styleClass="tab-switcher">
+                <Button fx:id="tabLoginButton" text="Đăng nhập" onAction="#onSelectLoginTab" styleClass="tab-btn, tab-btn-active" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                <Button fx:id="tabRegisterButton" text="Đăng ký tài khoản" onAction="#onSelectRegisterTab" styleClass="tab-btn" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+            </HBox>
+
+            <!-- Form -->
+            <VBox spacing="12">
+                <VBox spacing="6">
+                    <Label text="Tên đăng nhập (Username):" styleClass="input-label"/>
+                    <TextField fx:id="usernameField" promptText="Nhập tên đăng nhập của bạn" styleClass="form-input"/>
+                </VBox>
+
+                <VBox spacing="6">
+                    <Label text="Mật khẩu (Password):" styleClass="input-label"/>
+                    <PasswordField fx:id="passwordField" promptText="Nhập mật khẩu" styleClass="form-input" onAction="#onAuthAction"/>
+                </VBox>
+            </VBox>
+
+            <!-- Status Banner -->
+            <Label fx:id="authStatusLabel" text="" styleClass="auth-feedback" wrapText="true" visible="false" managed="false"/>
+
+            <!-- Action Button -->
+            <Button fx:id="authActionButton" text="Đăng nhập ngay" onAction="#onAuthAction" maxWidth="Infinity" styleClass="button-primary"/>
+        </VBox>
     </VBox>
 
-    <!-- File Transfer Section -->
-    <VBox spacing="8" styleClass="section-panel">
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Button fx:id="uploadButton" text="Tải lên File" onAction="#onUpload" minWidth="-Infinity"/>
-            <Region prefWidth="10"/>
-            <Button fx:id="downloadButton" text="Tải xuống" onAction="#onDownload" minWidth="-Infinity"/>
-            <Label text="Tên file:"/>
-            <TextField fx:id="filenameField" HBox.hgrow="ALWAYS" promptText="Tên file trên server để tải xuống"/>
-        </HBox>
-        <ProgressBar fx:id="progressBar" maxWidth="Infinity" progress="0.0"/>
-    </VBox>
+    <!-- ============================================== -->
+    <!-- SCREEN 3: MÀN HÌNH CHAT CHÍNH (MAIN WORKSPACE) -->
+    <!-- ============================================== -->
+    <BorderPane fx:id="mainChatScreen" styleClass="main-workspace" visible="false" managed="false">
+        <!-- LEFT SIDEBAR -->
+        <left>
+            <VBox styleClass="sidebar-panel" spacing="14" prefWidth="220">
+                <padding><Insets top="16" right="14" bottom="16" left="14"/></padding>
 
-    <!-- Activity Log Section with Toggle & Clear -->
-    <VBox fx:id="logContainer" spacing="6" styleClass="section-panel">
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="Nhật ký hoạt động (Activity Log)" style="-fx-font-weight: bold;"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
-            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
-        </HBox>
-        <TextArea fx:id="logArea" prefRowCount="4" editable="false" styleClass="log-area, mono-text"/>
-    </VBox>
+                <!-- User Profile Card -->
+                <VBox styleClass="user-profile-card" spacing="8">
+                    <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                    <HBox alignment="CENTER_LEFT" spacing="10">
+                        <StackPane styleClass="avatar-circle" prefWidth="38" prefHeight="38">
+                            <Label fx:id="avatarInitialLabel" text="U" styleClass="avatar-text"/>
+                        </StackPane>
+                        <VBox spacing="2" HBox.hgrow="ALWAYS">
+                            <Label fx:id="currentUsernameLabel" text="Người dùng" styleClass="user-name-label"/>
+                            <HBox alignment="CENTER_LEFT" spacing="6">
+                                <Region styleClass="status-indicator, status-online" prefWidth="8" prefHeight="8"/>
+                                <Label text="ONLINE" styleClass="user-status-text"/>
+                            </HBox>
+                        </VBox>
+                    </HBox>
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="Server:" styleClass="caption-muted"/>
+                        <Label fx:id="currentServerLabel" text="127.0.0.1:8888" styleClass="badge-server-mini"/>
+                    </HBox>
+                </VBox>
 
-</VBox>
+                <Separator styleClass="panel-separator"/>
+
+                <!-- Channel Info Card -->
+                <VBox spacing="6">
+                    <Label text="KÊNH HIỆN TẠI" styleClass="sidebar-section-title"/>
+                    <VBox styleClass="info-banner" spacing="4">
+                        <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                        <Label text="Kênh Trò chuyện Chung" styleClass="card-title"/>
+                        <Label text="Giao thức UDP thời gian thực" styleClass="caption-muted"/>
+                    </VBox>
+                </VBox>
+
+                <Region VBox.vgrow="ALWAYS"/>
+
+                <!-- Bottom Logout & Switch Actions -->
+                <VBox spacing="8">
+                    <Separator styleClass="panel-separator"/>
+                    <Button fx:id="switchServerButton" text="Đổi Máy chủ" onAction="#onSwitchServerFromWorkspace" styleClass="button-secondary" maxWidth="Infinity"/>
+                    <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout" styleClass="button-danger" maxWidth="Infinity"/>
+                </VBox>
+            </VBox>
+        </left>
+
+        <!-- CENTER: CHAT MESSAGE STREAM (ZALO STYLE) -->
+        <center>
+            <VBox spacing="10" styleClass="workspace-content">
+                <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                
+                <!-- Chat Header -->
+                <HBox alignment="CENTER_LEFT" spacing="10" styleClass="workspace-header">
+                    <VBox spacing="2">
+                        <Label text="Phòng Trò Chuyện Chung" styleClass="workspace-title"/>
+                        <Label text="Tin nhắn văn bản &amp; tệp tin được chuyển tiếp tức thời qua UDP" styleClass="workspace-subtitle"/>
+                    </VBox>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="Xóa màn hình chat" onAction="#onClearChat" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button text="[≡] Tệp &amp; Media" onAction="#onToggleMediaPanel" styleClass="button-secondary" minWidth="-Infinity"/>
+                </HBox>
+
+                <!-- Scrollable Messages Container -->
+                <ScrollPane fx:id="chatScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="chat-container">
+                    <VBox fx:id="messagesBox" spacing="10">
+                        <padding><Insets top="6" right="8" bottom="6" left="8"/></padding>
+                    </VBox>
+                </ScrollPane>
+
+                <!-- Chat Input Bar -->
+                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="chat-input-bar">
+                    <Button text="[+] Đính kèm tệp / ảnh" onAction="#onAttachFile" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..." styleClass="form-input" onAction="#onSendMessage"/>
+                    <Button fx:id="sendButton" text="Gửi tin nhắn" onAction="#onSendMessage" defaultButton="true" styleClass="button-primary" minWidth="-Infinity"/>
+                </HBox>
+            </VBox>
+        </center>
+
+        <!-- RIGHT DRAWER: PANEL QUẢN LÝ KÊNH (MEDIA & TỆP TIN) -->
+        <right>
+            <VBox fx:id="channelMediaPanel" styleClass="channel-panel" spacing="0">
+                <!-- Panel Header -->
+                <HBox alignment="CENTER_LEFT" styleClass="channel-panel-header">
+                    <Label text="Quản lý Kênh" styleClass="brand-title-medium"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="✕" onAction="#onCloseMediaPanel" styleClass="button-secondary" minWidth="-Infinity"/>
+                </HBox>
+
+                <!-- Panel Content Scroll -->
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
+                    <VBox spacing="14">
+                        <padding><Insets top="12" right="14" bottom="12" left="14"/></padding>
+
+                        <!-- Section 1: Images & GIFs -->
+                        <VBox spacing="6">
+                            <Label text="ẢNH &amp; GIF ĐÃ CHIA SẺ" styleClass="channel-section-title"/>
+                            <FlowPane fx:id="imagesGalleryPane" styleClass="gallery-flow-pane"/>
+                            <Label fx:id="noImagesLabel" text="Chưa có hình ảnh nào" styleClass="caption-muted"/>
+                        </VBox>
+
+                        <Separator styleClass="panel-separator"/>
+
+                        <!-- Section 2: Files & Documents -->
+                        <VBox spacing="6">
+                            <Label text="TỆP TIN &amp; TÀI LIỆU" styleClass="channel-section-title"/>
+                            <VBox fx:id="filesListPane" spacing="6"/>
+                            <Label fx:id="noFilesLabel" text="Chưa có tệp tin nào" styleClass="caption-muted"/>
+                        </VBox>
+
+                        <Separator styleClass="panel-separator"/>
+
+                        <!-- Section 3: UDP Mini Logs -->
+                        <VBox spacing="6">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label text="NHẬT KÝ MẠNG UDP" styleClass="channel-section-title"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
+                            </HBox>
+                            <TextArea fx:id="logArea" prefRowCount="5" editable="false" wrapText="true" styleClass="mini-log-box"/>
+                        </VBox>
+                    </VBox>
+                </ScrollPane>
+            </VBox>
+        </right>
+    </BorderPane>
+
+</StackPane>

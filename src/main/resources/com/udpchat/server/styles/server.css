@@ -1,22 +1,40 @@
-/* Server specific styles */
+/* ==========================================================================
+   server.css - Specific Server UI Styling (Cyber Gold & Obsidian)
+   100% Font Compatibility for Vietnamese
+   ========================================================================== */
+
+/* Server Root */
+.app-root {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #0B0F19;
+}
+
+/* Status Indicators */
 .status-indicator {
-    -fx-min-width: 12px;
-    -fx-min-height: 12px;
-    -fx-max-width: 12px;
-    -fx-max-height: 12px;
-    -fx-background-radius: 6px;
+    -fx-min-width: 10px;
+    -fx-min-height: 10px;
+    -fx-max-width: 10px;
+    -fx-max-height: 10px;
+    -fx-background-radius: 5px;
 }
 
 .status-online {
-    -fx-background-color: #4CAF50;
-    -fx-effect: dropshadow(gaussian, #4CAF50, 5, 0, 0, 0);
+    -fx-background-color: #10B981;
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.6), 8, 0, 0, 0);
 }
 
 .status-offline {
-    -fx-background-color: #F44336;
+    -fx-background-color: #EF4444;
+}
+
+/* Server Console Area */
+.log-area, .log-area .content {
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-control-inner-background: #05080F;
+    -fx-text-fill: #6EE7B7;
 }
 
 .mono-text {
-    -fx-font-family: 'Consolas', 'Courier New', monospace;
-    -fx-font-size: 12px;
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
 }

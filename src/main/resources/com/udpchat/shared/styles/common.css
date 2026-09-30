@@ -1,77 +1,415 @@
-/* Amber Signal Theme */
-.root {
-    -fx-base: #1A1A2E;
-    -fx-accent: #C8A84E;
-    -fx-text-primary: #E8E4D9;
-    -fx-text-secondary: #8B8B9E;
-    -fx-background: #1A1A2E;
-    -fx-control-inner-background: #0F0F1E;
-    -fx-font-family: "Segoe UI", sans-serif;
+/* ==========================================================================
+   Cyber Gold & Obsidian Dark Slate Theme
+   Unified Design System for UDP Chat Client & Server
+   100% Font Compatibility for Vietnamese (Segoe UI + Arial fallback)
+   ========================================================================== */
+
+/* App Root Window */
+.root, .app-root {
+    -fx-base: #0B0F19;
+    -fx-accent: #F59E0B;
+    -fx-background: #0B0F19;
+    -fx-background-color: #0B0F19;
+    -fx-control-inner-background: #0B0F19;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
     -fx-font-size: 13px;
-    -fx-background-color: -fx-background;
+    -fx-text-fill: #E2E8F0;
 }
 
+/* Base Label */
 .label {
-    -fx-text-fill: #E8E4D9;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-text-fill: #E2E8F0;
 }
 
-.button {
-    -fx-background-color: #16213E;
-    -fx-border-color: #2A2A4A;
+/* ==========================================================================
+   TYPOGRAPHY & BRANDING
+   ========================================================================== */
+.brand-icon-badge {
+    -fx-background-color: linear-gradient(to bottom right, #F59E0B, #B45309);
+    -fx-background-radius: 6px;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0B0F19;
+    -fx-padding: 4px 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.4), 8, 0, 0, 0);
+}
+
+.brand-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.brand-title-medium {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.brand-subtitle {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #94A3B8;
+}
+
+.card-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F1F5F9;
+}
+
+.card-desc {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #94A3B8;
+}
+
+.input-label {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #CBD5E1;
+}
+
+.info-label {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #94A3B8;
+}
+
+.caption-muted {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11px;
+    -fx-text-fill: #64748B;
+}
+
+.error-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #F87171;
+    -fx-background-color: rgba(239, 68, 68, 0.12);
+    -fx-border-color: #EF4444;
     -fx-border-width: 1px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
-    -fx-text-fill: #C8A84E;
-    -fx-padding: 5px 15px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 6px 10px;
+}
+
+/* ==========================================================================
+   CARDS & CONTAINERS
+   ========================================================================== */
+.card-panel {
+    -fx-background-color: #121824;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.35), 8, 0, 0, 2);
+}
+
+.entrance-card {
+    -fx-border-color: #27354A;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.5), 16, 0, 0, 6);
+}
+
+.screen-container {
+    -fx-background-color: #0B0F19;
+}
+
+.panel-separator {
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0.5px;
+    -fx-background-color: transparent;
+}
+
+.info-banner {
+    -fx-background-color: #090D16;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+.button {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-text-fill: #E2E8F0;
+    -fx-padding: 6px 14px;
     -fx-cursor: hand;
-    -fx-min-width: -fx-pref;
+    -fx-font-weight: bold;
 }
 
 .button:hover {
-    -fx-background-color: #1F2E54;
-    -fx-effect: dropshadow(three-pass-box, rgba(200, 168, 78, 0.3), 5, 0, 0, 0);
+    -fx-background-color: #2D3D54;
+    -fx-border-color: #F59E0B;
+    -fx-text-fill: #F59E0B;
 }
 
 .button:pressed {
-    -fx-background-color: #0F172A;
+    -fx-background-color: #16202E;
 }
 
 .button:disabled {
-    -fx-opacity: 0.5;
+    -fx-opacity: 0.45;
     -fx-cursor: default;
 }
 
-.text-field, .password-field {
-    -fx-background-color: #0F0F1E;
-    -fx-border-color: #2A2A4A;
+/* Primary Accent Button (Amber / Gold) */
+.button-primary {
+    -fx-background-color: linear-gradient(to bottom, #F59E0B, #D97706);
+    -fx-border-color: #B45309;
     -fx-border-width: 1px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
-    -fx-text-fill: #E8E4D9;
-    -fx-prompt-text-fill: #8B8B9E;
-    -fx-padding: 5px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-text-fill: #0B0F19;
+    -fx-font-weight: bold;
+    -fx-padding: 7px 16px;
+    -fx-cursor: hand;
 }
 
-.text-field:focused, .password-field:focused {
-    -fx-border-color: #C8A84E;
+.button-primary:hover {
+    -fx-background-color: linear-gradient(to bottom, #FBBF24, #F59E0B);
+    -fx-border-color: #F59E0B;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.4), 8, 0, 0, 0);
+    -fx-text-fill: #000000;
 }
 
+.button-primary:pressed {
+    -fx-background-color: #B45309;
+}
+
+/* Secondary Button */
+.button-secondary {
+    -fx-background-color: #16202E;
+    -fx-border-color: #27354A;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-text-fill: #CBD5E1;
+    -fx-padding: 5px 12px;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+
+.button-secondary:hover {
+    -fx-background-color: #1F2D42;
+    -fx-border-color: #F59E0B;
+    -fx-text-fill: #F59E0B;
+}
+
+/* Danger Button (e.g. Logout / Stop) */
+.button-danger {
+    -fx-background-color: #221214;
+    -fx-border-color: #5C1D24;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-text-fill: #F87171;
+    -fx-padding: 6px 12px;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+
+.button-danger:hover {
+    -fx-background-color: #3B161B;
+    -fx-border-color: #EF4444;
+    -fx-text-fill: #FCA5A5;
+}
+
+/* ==========================================================================
+   FORM INPUTS
+   ========================================================================== */
+.form-input, .text-field, .password-field {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-text-fill: #F8FAFC;
+    -fx-prompt-text-fill: #475569;
+    -fx-padding: 7px 11px;
+    -fx-font-size: 13px;
+}
+
+.form-input:focused, .text-field:focused, .password-field:focused {
+    -fx-border-color: #F59E0B;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.25), 5, 0, 0, 0);
+}
+
+/* ==========================================================================
+   TEXT AREAS & MONOSPACE CONSOLES
+   ========================================================================== */
 .text-area {
-    -fx-background-color: #0F0F1E;
-    -fx-border-color: #2A2A4A;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
     -fx-border-width: 1px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
-    -fx-text-fill: #E8E4D9;
-    -fx-prompt-text-fill: #8B8B9E;
-}
-
-.text-area:focused {
-    -fx-border-color: #C8A84E;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-text-fill: #F1F5F9;
 }
 
 .text-area .content {
-    -fx-background-color: #0F0F1E;
+    -fx-background-color: #080C14;
+    -fx-background-radius: 6px;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+.text-area:focused {
+    -fx-border-color: #F59E0B;
+}
+
+.log-area, .log-area .content {
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-control-inner-background: #05080F;
+    -fx-text-fill: #6EE7B7;
+}
+
+.mini-log-box, .mini-log-box .content {
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11px;
+    -fx-control-inner-background: #060910;
+    -fx-text-fill: #6EE7B7;
+}
+
+.mono-text {
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+}
+
+/* ==========================================================================
+   BADGES & INDICATORS
+   ========================================================================== */
+.badge-ip {
+    -fx-background-color: #080C14;
+    -fx-border-color: #F59E0B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 2px 7px;
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #F59E0B;
+    -fx-font-weight: bold;
+}
+
+.badge-server {
+    -fx-background-color: #080C14;
+    -fx-border-color: #27354A;
+    -fx-border-width: 1px;
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-padding: 3px 10px;
+    -fx-font-size: 11.5px;
+    -fx-text-fill: #38BDF8;
+    -fx-font-weight: bold;
+}
+
+.badge-server-mini {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 1px 5px;
+    -fx-font-size: 10.5px;
+    -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
+    -fx-text-fill: #38BDF8;
+}
+
+.status-indicator {
+    -fx-min-width: 10px;
+    -fx-min-height: 10px;
+    -fx-max-width: 10px;
+    -fx-max-height: 10px;
+    -fx-background-radius: 5px;
+}
+
+.status-online {
+    -fx-background-color: #10B981;
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.6), 8, 0, 0, 0);
+}
+
+.status-offline {
+    -fx-background-color: #EF4444;
+}
+
+.status-badge-container {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-padding: 4px 10px;
+}
+
+.status-badge-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F1F5F9;
+}
+
+/* ==========================================================================
+   PROGRESS BAR
+   ========================================================================== */
+.progress-bar, .modern-progress-bar {
+    -fx-background-color: transparent;
+}
+
+.progress-bar .track, .modern-progress-bar .track {
+    -fx-background-color: #080C14;
+    -fx-background-radius: 5px;
+    -fx-border-color: #1E293B;
+    -fx-border-radius: 5px;
+    -fx-border-width: 1px;
+}
+
+.progress-bar .bar, .modern-progress-bar .bar {
+    -fx-background-color: linear-gradient(to right, #D97706, #F59E0B);
+    -fx-background-radius: 4px;
+    -fx-padding: 4px;
+}
+
+/* ==========================================================================
+   LIST VIEW & SCROLLBAR
+   ========================================================================== */
+.list-view, .modern-list-view {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+}
+
+.list-cell {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #080C14;
+    -fx-text-fill: #E2E8F0;
+    -fx-padding: 6px 10px;
+    -fx-font-size: 12px;
+}
+
+.list-cell:filled:hover {
+    -fx-background-color: #121A28;
+    -fx-text-fill: #F59E0B;
+}
+
+.list-cell:filled:selected {
+    -fx-background-color: rgba(245, 158, 11, 0.18);
+    -fx-text-fill: #F59E0B;
 }
 
 .scroll-pane {
@@ -94,163 +432,150 @@
 }
 
 .scroll-bar .thumb {
-    -fx-background-color: #2A2A4A;
+    -fx-background-color: #1E293B;
     -fx-background-radius: 5em;
 }
 
 .scroll-bar .thumb:hover {
-    -fx-background-color: #3A3A5A;
+    -fx-background-color: #334155;
 }
 
-.progress-bar {
-    -fx-background-color: transparent;
-}
-
-.progress-bar .track {
-    -fx-background-color: #0F0F1E;
-    -fx-background-radius: 5px;
-    -fx-border-color: #2A2A4A;
-    -fx-border-radius: 5px;
-}
-
-.progress-bar .bar {
-    -fx-background-color: #C8A84E;
-    -fx-background-radius: 4px;
-    -fx-padding: 3px;
-}
-
-.list-view {
-    -fx-background-color: #0F0F1E;
-    -fx-border-color: #2A2A4A;
-}
-
-.list-cell {
-    -fx-background-color: #0F0F1E;
-    -fx-text-fill: white;
-}
-
-.list-cell:filled:hover {
-    -fx-background-color: #16213E;
-}
-
-.list-cell:filled:selected {
-    -fx-background-color: rgba(200, 168, 78, 0.2);
-    -fx-text-fill: #C8A84E;
-}
-
-.titled-pane {
-    -fx-text-fill: #C8A84E;
-}
-
-.titled-pane > .title {
-    -fx-background-color: linear-gradient(to right, #16213E, #1A1A2E);
-    -fx-border-color: #2A2A4A;
-}
-
-.separator {
-    -fx-border-color: #2A2A4A;
-    -fx-border-width: 0.5px;
-    -fx-background-color: transparent;
-}
-
-.separator *.line {
-    -fx-border-color: #2A2A4A;
-    -fx-border-width: 0.5px;
-}
-
-/* Custom Style Classes */
-.section-panel {
-    -fx-background-color: #16213E;
-    -fx-border-color: #2A2A4A;
+/* ==========================================================================
+   CHAT BUBBLES & INLINE FILE CARDS (ZALO STYLE)
+   ========================================================================== */
+.chat-container {
+    -fx-background-color: #080C14;
+    -fx-border-color: #1E293B;
     -fx-border-width: 1px;
-    -fx-padding: 10 15 10 15;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px;
 }
 
-.section-title {
-    -fx-text-fill: #C8A84E;
-    -fx-font-size: 14px;
+/* Message Bubble - Mine */
+.message-bubble-me {
+    -fx-background-color: #152136;
+    -fx-border-color: #243552;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 12px;
+    -fx-max-width: 580px;
+}
+
+/* Message Bubble - Others */
+.message-bubble-other {
+    -fx-background-color: #111824;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 12px;
+    -fx-max-width: 580px;
+}
+
+/* Message Bubble - System */
+.message-bubble-system {
+    -fx-background-color: #0E131D;
+    -fx-border-color: #1A2434;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 10px;
+}
+
+.bubble-sender-me {
     -fx-font-weight: bold;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: #F59E0B;
 }
 
-.title-bar {
-    -fx-background-color: linear-gradient(to right, #16213E, #1A1A2E);
-    -fx-padding: 8 12 8 12;
+.bubble-sender-other {
+    -fx-font-weight: bold;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: #38BDF8;
 }
 
-.mono-text {
-    -fx-font-family: "Consolas", "Segoe UI", monospace;
+.bubble-sender-system {
+    -fx-font-weight: bold;
+    -fx-font-size: 11.5px;
+    -fx-text-fill: #94A3B8;
 }
 
-.chat-area {
-    -fx-font-family: "Segoe UI", sans-serif;
-    -fx-font-size: 13px;
-    -fx-control-inner-background: #0F0F1E;
-}
-
-.log-area {
-    -fx-font-family: "Consolas", "Segoe UI", monospace;
-    -fx-font-size: 12px;
-}
-
-.button-secondary {
-    -fx-background-color: #0F172A;
-    -fx-border-color: #2A2A4A;
-    -fx-border-width: 1px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
-    -fx-text-fill: #E8E4D9;
-    -fx-padding: 3px 8px;
+.bubble-time {
     -fx-font-size: 11px;
-    -fx-cursor: hand;
-    -fx-min-width: -fx-pref;
+    -fx-text-fill: #64748B;
 }
 
-.button-secondary:hover {
-    -fx-background-color: #1F2E54;
-    -fx-border-color: #C8A84E;
-    -fx-text-fill: #C8A84E;
+.bubble-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+    -fx-text-fill: #F1F5F9;
 }
 
-.badge-ip {
-    -fx-background-color: #0F0F1E;
-    -fx-border-color: #C8A84E;
+/* Inline File Card */
+.file-card-box {
+    -fx-background-color: #0A0E17;
+    -fx-border-color: #27354A;
     -fx-border-width: 1px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
-    -fx-padding: 2px 6px;
-    -fx-font-family: "Consolas", "Segoe UI", monospace;
-    -fx-font-size: 12px;
-    -fx-text-fill: #C8A84E;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 10px 12px;
+    -fx-spacing: 8px;
+}
+
+.file-type-badge {
+    -fx-background-color: #16202E;
+    -fx-border-color: #F59E0B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-text-fill: #F59E0B;
     -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-padding: 2px 6px;
 }
 
-/* Status Indicators */
-.status-indicator {
-    -fx-min-width: 10px;
-    -fx-min-height: 10px;
-    -fx-max-width: 10px;
-    -fx-max-height: 10px;
+.file-title-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-text-fill: #F8FAFC;
+}
+
+.file-size-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+}
+
+.image-preview-view {
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.5), 6, 0, 0, 2);
+    -fx-cursor: hand;
+}
+
+/* ==========================================================================
+   FEEDBACK & ALERTS
+   ========================================================================== */
+.feedback-success {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #34D399;
+    -fx-background-color: rgba(16, 185, 129, 0.12);
+    -fx-border-color: #10B981;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
     -fx-background-radius: 5px;
+    -fx-padding: 6px 10px;
 }
 
-.status-online {
-    -fx-background-color: #4ADE80;
-    -fx-effect: dropshadow(three-pass-box, rgba(74, 222, 128, 0.4), 5, 0, 0, 0);
+.feedback-error {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #F87171;
+    -fx-background-color: rgba(239, 68, 68, 0.12);
+    -fx-border-color: #EF4444;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 6px 10px;
 }
-
-.status-offline {
-    -fx-background-color: #6B7280;
-}
-
-.status-connecting {
-    -fx-background-color: #C8A84E;
-}
-
-/* Status Text Colors */
-.status-success { -fx-text-fill: #4ADE80; }
-.status-warning { -fx-text-fill: #FBBF24; }
-.status-error { -fx-text-fill: #F87171; }
-.status-uploading { -fx-text-fill: #60A5FA; }
-.status-downloading { -fx-text-fill: #A78BFA; }

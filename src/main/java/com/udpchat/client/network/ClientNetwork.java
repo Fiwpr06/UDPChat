@@ -26,7 +26,7 @@ public class ClientNetwork {
         this.serverPort = serverPort;
     }
 
-    public String sendRequest(String request) throws Exception {
+    public synchronized String sendRequest(String request) throws Exception {
         UDPUtil.sendString(socket, request, serverAddress, serverPort);
         socket.setSoTimeout(5000);
         String[] response = UDPUtil.receiveString(socket);
@@ -35,7 +35,11 @@ public class ClientNetwork {
         return response[0];
     }
 
-    public void sendFileChunks(File file, InetAddress addr, int port) throws Exception {
+    public synchronized void sendFileChunks(File file, InetAddress addr, int port) throws Exception {
+        sendFileChunks(file, addr, port, null);
+    }
+
+    public synchronized void sendFileChunks(File file, InetAddress addr, int port, java.util.function.Consumer<Double> onProgress) throws Exception {
         List<byte[]> chunks = FileChunkUtil.splitFile(file);
         int totalChunks = chunks.size();
 
@@ -53,6 +57,9 @@ public class ClientNetwork {
                     String[] response = UDPUtil.receiveString(socket);
                     if (response[0].startsWith(Command.ACK.name() + UDPConstants.DELIMITER + i)) {
                         ackReceived = true;
+                        if (onProgress != null) {
+                            onProgress.accept((double) (i + 1) / totalChunks);
+                        }
                     }
                 } catch (SocketTimeoutException e) {
                     retries++;
@@ -67,7 +74,11 @@ public class ClientNetwork {
         UDPUtil.sendString(socket, Command.TRANSFER_DONE.name(), addr, port);
     }
 
-    public void receiveFileChunks(int totalChunks, File outputFile) throws Exception {
+    public synchronized void receiveFileChunks(int totalChunks, File outputFile) throws Exception {
+        receiveFileChunks(totalChunks, outputFile, null);
+    }
+
+    public synchronized void receiveFileChunks(int totalChunks, File outputFile, java.util.function.Consumer<Double> onProgress) throws Exception {
         Map<Integer, byte[]> chunksMap = new HashMap<>();
         socket.setSoTimeout(5000);
         
@@ -83,6 +94,9 @@ public class ClientNetwork {
                 String base64Data = parts[3];
                 
                 chunksMap.put(index, FileChunkUtil.decodeChunk(base64Data));
+                if (onProgress != null) {
+                    onProgress.accept((double) chunksMap.size() / totalChunks);
+                }
                 
                 String ack = Command.ACK.name() + UDPConstants.DELIMITER + index;
                 UDPUtil.sendString(socket, ack, senderIp, senderPort);
