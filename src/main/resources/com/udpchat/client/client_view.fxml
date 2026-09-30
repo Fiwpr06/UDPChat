@@ -41,12 +41,12 @@
             <Label text="Tài khoản:" prefWidth="75"/>
             <TextField fx:id="usernameField" promptText="Tên đăng nhập" HBox.hgrow="ALWAYS"/>
             <Label text="Mật khẩu:" prefWidth="70"/>
-            <PasswordField fx:id="passwordField" promptText="Mật khẩu" HBox.hgrow="ALWAYS"/>
+            <PasswordField fx:id="passwordField" promptText="Mật khẩu" HBox.hgrow="ALWAYS" onAction="#onLogin"/>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT">
-            <Button fx:id="registerButton" text="Đăng ký" onAction="#onRegister"/>
-            <Button fx:id="loginButton" text="Đăng nhập" onAction="#onLogin"/>
-            <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout"/>
+            <Button fx:id="registerButton" text="Đăng ký" onAction="#onRegister" minWidth="-Infinity"/>
+            <Button fx:id="loginButton" text="Đăng nhập" onAction="#onLogin" minWidth="-Infinity"/>
+            <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout" minWidth="-Infinity"/>
         </HBox>
     </VBox>
 
@@ -57,21 +57,21 @@
         </HBox>
         <TextArea fx:id="chatArea" VBox.vgrow="ALWAYS" prefRowCount="8" editable="false" styleClass="chat-area"/>
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..."/>
-            <Button fx:id="sendButton" text="Gửi" onAction="#onSendMessage" defaultButton="true"/>
+            <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..." onAction="#onSendMessage"/>
+            <Button fx:id="sendButton" text="Gửi" onAction="#onSendMessage" defaultButton="true" minWidth="-Infinity"/>
         </HBox>
     </VBox>
 
     <!-- File Transfer Section -->
     <VBox spacing="8" styleClass="section-panel">
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <Button fx:id="uploadButton" text="Tải lên File" onAction="#onUpload"/>
+            <Button fx:id="uploadButton" text="Tải lên File" onAction="#onUpload" minWidth="-Infinity"/>
             <Region prefWidth="10"/>
-            <Button fx:id="downloadButton" text="Tải xuống" onAction="#onDownload"/>
+            <Button fx:id="downloadButton" text="Tải xuống" onAction="#onDownload" minWidth="-Infinity"/>
             <Label text="Tên file:"/>
             <TextField fx:id="filenameField" HBox.hgrow="ALWAYS" promptText="Tên file trên server để tải xuống"/>
         </HBox>
-        <ProgressBar fx:id="progressBar" maxWidth="MAX_VALUE" progress="0.0"/>
+        <ProgressBar fx:id="progressBar" maxWidth="Infinity" progress="0.0"/>
     </VBox>
 
     <!-- Activity Log Section with Toggle & Clear -->
@@ -79,8 +79,8 @@
         <HBox alignment="CENTER_LEFT" spacing="10">
             <Label text="Nhật ký hoạt động (Activity Log)" style="-fx-font-weight: bold;"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary"/>
-            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary"/>
+            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
         <TextArea fx:id="logArea" prefRowCount="4" editable="false" styleClass="log-area, mono-text"/>
     </VBox>

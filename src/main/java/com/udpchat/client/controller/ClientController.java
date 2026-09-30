@@ -54,6 +54,7 @@ public class ClientController {
         myIpLabel.setText(UDPUtil.getLocalIPAddress());
         chatArea.setEditable(false);
         logArea.setEditable(false);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
         setLoggedInState(false);
     }
 
@@ -133,18 +134,27 @@ public class ClientController {
     private void onRegister() {
         String username = usernameField.getText().trim();
         String password = passwordField.getText().trim();
-        if (username.isEmpty() || password.isEmpty()) {
-            addLogMessage("Tên đăng nhập và mật khẩu không được để trống.");
+        String host = serverHostField.getText().trim();
+        String portStr = portField.getText().trim();
+        if (host.isEmpty()) host = "localhost";
+
+        if (username.isEmpty() || password.isEmpty() || portStr.isEmpty()) {
+            addLogMessage("Tên đăng nhập, mật khẩu và cổng không được để trống.");
             return;
         }
 
+        final String targetHost = host;
         new Thread(() -> {
             try {
+                int port = Integer.parseInt(portStr);
                 if (service == null) {
-                    service = new ClientService(serverHostField.getText().trim(), Integer.parseInt(portField.getText().trim()));
+                    service = new ClientService(targetHost, port);
                     service.setOnLogMessage(this::addLogMessage);
+                    service.setOnIncomingMessage(this::addChatMessage);
                 }
                 service.register(username, password);
+            } catch (NumberFormatException e) {
+                addLogMessage("Lỗi: Số cổng (port) không hợp lệ.");
             } catch (Exception e) {
                 addLogMessage("Lỗi khởi tạo dịch vụ: " + e.getMessage());
             }
@@ -157,23 +167,28 @@ public class ClientController {
         String password = passwordField.getText().trim();
         String host = serverHostField.getText().trim();
         String portStr = portField.getText().trim();
+        if (host.isEmpty()) host = "localhost";
 
-        if (username.isEmpty() || password.isEmpty() || host.isEmpty() || portStr.isEmpty()) {
+        if (username.isEmpty() || password.isEmpty() || portStr.isEmpty()) {
             addLogMessage("Vui lòng điền đủ thông tin kết nối và đăng nhập.");
             return;
         }
 
+        final String targetHost = host;
         new Thread(() -> {
             try {
+                int port = Integer.parseInt(portStr);
                 if (service == null) {
-                    service = new ClientService(host, Integer.parseInt(portStr));
+                    service = new ClientService(targetHost, port);
                     service.setOnLogMessage(this::addLogMessage);
-                    service.setOnIncomingMessage(this::addChatMessage);
                 }
+                service.setOnIncomingMessage(this::addChatMessage);
                 String resp = service.login(username, password);
                 if (resp.startsWith("RESPONSE|OK")) {
                     Platform.runLater(() -> setLoggedInState(true));
                 }
+            } catch (NumberFormatException e) {
+                addLogMessage("Lỗi: Số cổng (port) không hợp lệ.");
             } catch (Exception e) {
                 addLogMessage("Lỗi kết nối khi đăng nhập: " + e.getMessage());
             }

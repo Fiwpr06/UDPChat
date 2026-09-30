@@ -10,7 +10,7 @@ public class ServerApp extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/udpchat/server/server_view.fxml"));
-        Scene scene = new Scene(loader.load(), 700, 600);
+        Scene scene = new Scene(loader.load(), 900, 680);
         
         try {
             scene.getStylesheets().add(getClass().getResource("/com/udpchat/shared/styles/common.css").toExternalForm());
@@ -21,6 +21,8 @@ public class ServerApp extends Application {
 
         primaryStage.setTitle("UDP Server");
         primaryStage.setScene(scene);
+        primaryStage.setMinWidth(850);
+        primaryStage.setMinHeight(600);
         primaryStage.show();
     }
 

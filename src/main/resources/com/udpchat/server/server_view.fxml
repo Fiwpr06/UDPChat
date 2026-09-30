@@ -22,40 +22,40 @@
 
     <!-- Server Control & IP Display -->
     <HBox styleClass="section-panel" spacing="10" alignment="CENTER_LEFT">
-        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
         
         <Label text="IP Máy chủ:"/>
         <Label fx:id="ipLabel" text="127.0.0.1" styleClass="badge-ip"/>
-        <Button fx:id="copyIpButton" text="📋 Copy IP" onAction="#onCopyIp" styleClass="button-secondary"/>
+        <Button fx:id="copyIpButton" text="📋 Copy IP" onAction="#onCopyIp" styleClass="button-secondary" minWidth="-Infinity"/>
 
-        <Region prefWidth="10"/>
+        <Region HBox.hgrow="ALWAYS"/>
         
         <Label text="Cổng (Port):"/>
         <TextField fx:id="portField" prefWidth="75"/>
-        <Button fx:id="startButton" text="Start Server" onAction="#onStart"/>
-        <Button fx:id="stopButton" text="Stop Server" onAction="#onStop"/>
+        <Button fx:id="startButton" text="Start Server" onAction="#onStart" minWidth="-Infinity"/>
+        <Button fx:id="stopButton" text="Stop Server" onAction="#onStop" minWidth="-Infinity"/>
     </HBox>
 
     <!-- Online Clients -->
     <VBox styleClass="section-panel" spacing="6">
-        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
             <Label fx:id="onlineCountLabel" text="Online: 0" style="-fx-font-weight: bold;"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="copyClientIpButton" text="📋 Copy IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary"/>
+            <Button fx:id="copyClientIpButton" text="📋 Copy IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
-        <ListView fx:id="clientListView" prefHeight="120"/>
+        <ListView fx:id="clientListView" prefHeight="130"/>
     </VBox>
 
     <!-- Activity Log -->
     <VBox fx:id="logContainer" styleClass="section-panel" spacing="6" VBox.vgrow="ALWAYS">
-        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
             <Label text="Nhật ký hoạt động mạng (Activity Log)" style="-fx-font-weight: bold;"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="openLogFileButton" text="📂 Mở file Log" onAction="#onOpenLogFile" styleClass="button-secondary"/>
-            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary"/>
-            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary"/>
+            <Button fx:id="openLogFileButton" text="📂 Mở file Log" onAction="#onOpenLogFile" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="toggleLogButton" text="👁️ Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Button fx:id="clearLogButton" text="🗑️ Xóa log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
         <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area, mono-text"/>
     </VBox>

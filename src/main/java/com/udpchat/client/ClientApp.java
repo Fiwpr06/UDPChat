@@ -20,7 +20,7 @@ public class ClientApp extends Application {
         
         controller = loader.getController();
 
-        Scene scene = new Scene(root, 700, 700);
+        Scene scene = new Scene(root, 760, 720);
         
         URL commonCss = getClass().getResource("/com/udpchat/shared/styles/common.css");
         URL clientCss = getClass().getResource("/com/udpchat/client/styles/client.css");
@@ -30,6 +30,8 @@ public class ClientApp extends Application {
 
         primaryStage.setTitle("UDP Client");
         primaryStage.setScene(scene);
+        primaryStage.setMinWidth(720);
+        primaryStage.setMinHeight(650);
         primaryStage.show();
     }
 
@@ -38,6 +40,7 @@ public class ClientApp extends Application {
         if (controller != null && controller.getService() != null) {
             controller.getService().close();
         }
+        System.exit(0);
     }
 
     public static void main(String[] args) {

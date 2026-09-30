@@ -24,6 +24,7 @@
     -fx-text-fill: #C8A84E;
     -fx-padding: 5px 15px;
     -fx-cursor: hand;
+    -fx-min-width: -fx-pref;
 }
 
 .button:hover {
@@ -203,6 +204,7 @@
     -fx-padding: 3px 8px;
     -fx-font-size: 11px;
     -fx-cursor: hand;
+    -fx-min-width: -fx-pref;
 }
 
 .button-secondary:hover {
