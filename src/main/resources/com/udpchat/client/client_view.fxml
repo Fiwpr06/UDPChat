@@ -19,24 +19,24 @@
             <!-- App Logo / Badge -->
             <VBox alignment="CENTER" spacing="6">
                 <HBox alignment="CENTER" spacing="10">
-                    <Label text="UDP" styleClass="brand-icon-badge"/>
-                    <Label text="UDP CHAT" styleClass="brand-title"/>
+                    <Label text="✉ MAIL" styleClass="brand-icon-badge"/>
+                    <Label text="UDP MAIL" styleClass="brand-title"/>
                 </HBox>
-                <Label text="Hệ thống Trò chuyện &amp; Truyền tệp qua giao thức UDP" styleClass="brand-subtitle"/>
+                <Label text="Hệ thống Thư điện tử thuần UDP (Lấy cảm hứng từ Gmail)" styleClass="brand-subtitle"/>
             </VBox>
 
             <Separator styleClass="panel-separator"/>
 
             <!-- Step Title -->
             <VBox alignment="CENTER_LEFT" spacing="4">
-                <Label text="Bước 1: Kết nối tới Máy chủ" styleClass="card-title"/>
-                <Label text="Nhập địa chỉ IP và Cổng (Port) của máy chủ UDP để bắt đầu." styleClass="card-desc"/>
+                <Label text="Bước 1: Kết nối tới Máy chủ Thư" styleClass="card-title"/>
+                <Label text="Nhập địa chỉ IP và Cổng (Port) của máy chủ UDP để truy cập hộp thư." styleClass="card-desc"/>
             </VBox>
 
             <!-- Form -->
             <VBox spacing="12">
                 <VBox spacing="6">
-                    <Label text="Địa chỉ Máy chủ (Server IP / Host):" styleClass="input-label"/>
+                    <Label text="Địa chỉ Máy chủ (Mail Server IP / Host):" styleClass="input-label"/>
                     <TextField fx:id="serverHostField" text="localhost" promptText="ví dụ: localhost hoặc 192.168.1.100" styleClass="form-input" onAction="#onConnectServer"/>
                 </VBox>
 
@@ -86,8 +86,8 @@
 
             <!-- Brand Icon Mini -->
             <VBox alignment="CENTER" spacing="4">
-                <Label fx:id="authModeTitle" text="Đăng nhập tài khoản" styleClass="brand-title-medium"/>
-                <Label fx:id="authModeSubtitle" text="Nhập tài khoản để tham gia mạng trò chuyện UDP" styleClass="brand-subtitle"/>
+                <Label fx:id="authModeTitle" text="Đăng nhập Hộp thư" styleClass="brand-title-medium"/>
+                <Label fx:id="authModeSubtitle" text="Nhập tài khoản để truy cập hệ thống thư điện tử UDP" styleClass="brand-subtitle"/>
             </VBox>
 
             <!-- Tab Switcher -->
@@ -99,8 +99,8 @@
             <!-- Form -->
             <VBox spacing="12">
                 <VBox spacing="6">
-                    <Label text="Tên đăng nhập (Username):" styleClass="input-label"/>
-                    <TextField fx:id="usernameField" promptText="Nhập tên đăng nhập của bạn" styleClass="form-input"/>
+                    <Label text="Tên tài khoản (Email username):" styleClass="input-label"/>
+                    <TextField fx:id="usernameField" promptText="Ví dụ: alice hoặc bob" styleClass="form-input"/>
                 </VBox>
 
                 <VBox spacing="6">
@@ -118,136 +118,291 @@
     </VBox>
 
     <!-- ============================================== -->
-    <!-- SCREEN 3: MÀN HÌNH CHAT CHÍNH (MAIN WORKSPACE) -->
+    <!-- SCREEN 3: MÀN HÌNH MAIL CHÍNH (GMAIL 3-PANEL)  -->
     <!-- ============================================== -->
-    <BorderPane fx:id="mainChatScreen" styleClass="main-workspace" visible="false" managed="false">
-        <!-- LEFT SIDEBAR -->
-        <left>
-            <VBox styleClass="sidebar-panel" spacing="14" prefWidth="220">
-                <padding><Insets top="16" right="14" bottom="16" left="14"/></padding>
+    <BorderPane fx:id="mainMailScreen" styleClass="main-workspace" visible="false" managed="false">
 
-                <!-- User Profile Card -->
-                <VBox styleClass="user-profile-card" spacing="8">
-                    <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                    <HBox alignment="CENTER_LEFT" spacing="10">
-                        <StackPane styleClass="avatar-circle" prefWidth="38" prefHeight="38">
-                            <Label fx:id="avatarInitialLabel" text="U" styleClass="avatar-text"/>
-                        </StackPane>
-                        <VBox spacing="2" HBox.hgrow="ALWAYS">
-                            <Label fx:id="currentUsernameLabel" text="Người dùng" styleClass="user-name-label"/>
-                            <HBox alignment="CENTER_LEFT" spacing="6">
-                                <Region styleClass="status-indicator, status-online" prefWidth="8" prefHeight="8"/>
-                                <Label text="ONLINE" styleClass="user-status-text"/>
-                            </HBox>
-                        </VBox>
-                    </HBox>
-                    <HBox alignment="CENTER_LEFT" spacing="6">
-                        <Label text="Server:" styleClass="caption-muted"/>
-                        <Label fx:id="currentServerLabel" text="127.0.0.1:8888" styleClass="badge-server-mini"/>
-                    </HBox>
-                </VBox>
+        <!-- TOP APPLICATION & SEARCH BAR -->
+        <top>
+            <HBox alignment="CENTER_LEFT" spacing="16" styleClass="top-app-bar">
+                <!-- Brand Badge -->
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="✉" styleClass="brand-icon-badge"/>
+                    <Label text="UDP Mail" styleClass="brand-title-medium"/>
+                </HBox>
+
+                <!-- Search Bar (Gmail Style) -->
+                <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="ALWAYS" maxWidth="560" styleClass="search-field-container">
+                    <Label text="🔍" styleClass="info-label"/>
+                    <TextField fx:id="searchField" promptText="Tìm kiếm trong thư (tiêu đề, nội dung, người gửi)..."
+                               styleClass="search-input" HBox.hgrow="ALWAYS" onAction="#onSearchMail"/>
+                    <Button fx:id="btnSearch" text="Tìm" onAction="#onSearchMail" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button fx:id="btnClearSearch" text="✕" onAction="#onClearSearch" styleClass="button-secondary" minWidth="-Infinity" visible="false" managed="false"/>
+                </HBox>
+
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <!-- Notification status badge -->
+                <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
+                    <Region styleClass="status-indicator, status-online" prefWidth="8" prefHeight="8"/>
+                    <Label fx:id="currentUserBadge" text="alice" styleClass="status-badge-text"/>
+                </HBox>
+            </HBox>
+        </top>
+
+        <!-- LEFT SIDEBAR: FOLDERS & ACTIONS -->
+        <left>
+            <VBox styleClass="sidebar-panel" spacing="12" prefWidth="210" minWidth="200">
+                <padding><Insets top="14" right="10" bottom="14" left="10"/></padding>
+
+                <!-- Big Compose Mail Button -->
+                <Button fx:id="btnOpenCompose" text="✏️  Soạn thư" onAction="#onOpenCompose"
+                        maxWidth="Infinity" styleClass="compose-button"/>
 
                 <Separator styleClass="panel-separator"/>
 
-                <!-- Channel Info Card -->
-                <VBox spacing="6">
-                    <Label text="KÊNH HIỆN TẠI" styleClass="sidebar-section-title"/>
-                    <VBox styleClass="info-banner" spacing="4">
-                        <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
-                        <Label text="Kênh Trò chuyện Chung" styleClass="card-title"/>
-                        <Label text="Giao thức UDP thời gian thực" styleClass="caption-muted"/>
-                    </VBox>
+                <!-- Folder List -->
+                <VBox spacing="4" VBox.vgrow="ALWAYS">
+                    <Button fx:id="btnFolderInbox" onAction="#onSelectFolderInbox" maxWidth="Infinity" styleClass="folder-nav-btn, folder-nav-btn-active">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10" maxWidth="Infinity">
+                                <Label text="📥"/>
+                                <Label text="Hộp thư đến" HBox.hgrow="ALWAYS"/>
+                                <Label fx:id="inboxBadgeCount" text="" styleClass="folder-badge-count" visible="false" managed="false"/>
+                            </HBox>
+                        </graphic>
+                    </Button>
+
+                    <Button fx:id="btnFolderStarred" onAction="#onSelectFolderStarred" maxWidth="Infinity" styleClass="folder-nav-btn">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10" maxWidth="Infinity">
+                                <Label text="⭐"/>
+                                <Label text="Có gắn dấu sao" HBox.hgrow="ALWAYS"/>
+                            </HBox>
+                        </graphic>
+                    </Button>
+
+                    <Button fx:id="btnFolderSent" onAction="#onSelectFolderSent" maxWidth="Infinity" styleClass="folder-nav-btn">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10" maxWidth="Infinity">
+                                <Label text="📤"/>
+                                <Label text="Đã gửi" HBox.hgrow="ALWAYS"/>
+                            </HBox>
+                        </graphic>
+                    </Button>
+
+                    <Button fx:id="btnFolderDrafts" onAction="#onSelectFolderDrafts" maxWidth="Infinity" styleClass="folder-nav-btn">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10" maxWidth="Infinity">
+                                <Label text="📝"/>
+                                <Label text="Bản nháp" HBox.hgrow="ALWAYS"/>
+                                <Label fx:id="draftsBadgeCount" text="" styleClass="folder-badge-count" visible="false" managed="false"/>
+                            </HBox>
+                        </graphic>
+                    </Button>
+
+                    <Button fx:id="btnFolderTrash" onAction="#onSelectFolderTrash" maxWidth="Infinity" styleClass="folder-nav-btn">
+                        <graphic>
+                            <HBox alignment="CENTER_LEFT" spacing="10" maxWidth="Infinity">
+                                <Label text="🗑️"/>
+                                <Label text="Thùng rác" HBox.hgrow="ALWAYS"/>
+                            </HBox>
+                        </graphic>
+                    </Button>
                 </VBox>
 
-                <Region VBox.vgrow="ALWAYS"/>
+                <!-- Mini Stats / Server info -->
+                <VBox styleClass="user-profile-card" spacing="6">
+                    <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="Hộp thư:" styleClass="caption-muted"/>
+                        <Label fx:id="userEmailDisplayLabel" text="alice" styleClass="badge-server-mini"/>
+                    </HBox>
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="Máy chủ:" styleClass="caption-muted"/>
+                        <Label fx:id="serverAddressDisplayLabel" text="127.0.0.1:8888" styleClass="badge-server-mini"/>
+                    </HBox>
+                </VBox>
 
-                <!-- Bottom Logout & Switch Actions -->
-                <VBox spacing="8">
-                    <Separator styleClass="panel-separator"/>
-                    <Button fx:id="switchServerButton" text="Đổi Máy chủ" onAction="#onSwitchServerFromWorkspace" styleClass="button-secondary" maxWidth="Infinity"/>
-                    <Button fx:id="logoutButton" text="Đăng xuất" onAction="#onLogout" styleClass="button-danger" maxWidth="Infinity"/>
+                <!-- Bottom Controls -->
+                <VBox spacing="6">
+                    <Button fx:id="btnToggleLog" text="📋 Nhật ký UDP" onAction="#onToggleLogDrawer" styleClass="button-secondary" maxWidth="Infinity"/>
+                    <Button fx:id="btnLogout" text="Đăng xuất" onAction="#onLogout" styleClass="button-danger" maxWidth="Infinity"/>
                 </VBox>
             </VBox>
         </left>
 
-        <!-- CENTER: CHAT MESSAGE STREAM (ZALO STYLE) -->
+        <!-- CENTER: MAIL LIST (PANEL GIỮA) -->
         <center>
-            <VBox spacing="10" styleClass="workspace-content">
-                <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
-                
-                <!-- Chat Header -->
-                <HBox alignment="CENTER_LEFT" spacing="10" styleClass="workspace-header">
-                    <VBox spacing="2">
-                        <Label text="Phòng Trò Chuyện Chung" styleClass="workspace-title"/>
-                        <Label text="Tin nhắn văn bản &amp; tệp tin được chuyển tiếp tức thời qua UDP" styleClass="workspace-subtitle"/>
-                    </VBox>
+            <VBox styleClass="mail-list-panel">
+                <!-- Mail List Header -->
+                <HBox alignment="CENTER_LEFT" spacing="10" styleClass="mail-list-header">
+                    <Label fx:id="currentFolderTitle" text="📥 Hộp thư đến" styleClass="card-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <Button text="Xóa màn hình chat" onAction="#onClearChat" styleClass="button-secondary" minWidth="-Infinity"/>
-                    <Button text="[≡] Tệp &amp; Media" onAction="#onToggleMediaPanel" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button text="🔄" onAction="#onRefreshCurrentFolder" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <HBox alignment="CENTER" spacing="4">
+                        <Button fx:id="btnPrevPage" text="◀" onAction="#onPrevPage" styleClass="button-secondary" minWidth="-Infinity"/>
+                        <Label fx:id="pageInfoLabel" text="1 / 1" styleClass="info-label"/>
+                        <Button fx:id="btnNextPage" text="▶" onAction="#onNextPage" styleClass="button-secondary" minWidth="-Infinity"/>
+                    </HBox>
                 </HBox>
 
-                <!-- Scrollable Messages Container -->
-                <ScrollPane fx:id="chatScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="chat-container">
-                    <VBox fx:id="messagesBox" spacing="10">
-                        <padding><Insets top="6" right="8" bottom="6" left="8"/></padding>
+                <!-- Mail Items Container (ScrollPane) -->
+                <ScrollPane fx:id="mailListScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="chat-container">
+                    <VBox fx:id="mailListBox" spacing="0">
+                        <!-- Populated dynamically with mail item cards -->
                     </VBox>
                 </ScrollPane>
 
-                <!-- Chat Input Bar -->
-                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="chat-input-bar">
-                    <Button text="[+] Đính kèm tệp / ảnh" onAction="#onAttachFile" styleClass="button-secondary" minWidth="-Infinity"/>
-                    <TextField fx:id="messageField" HBox.hgrow="ALWAYS" promptText="Nhập nội dung tin nhắn và nhấn Enter hoặc Gửi..." styleClass="form-input" onAction="#onSendMessage"/>
-                    <Button fx:id="sendButton" text="Gửi tin nhắn" onAction="#onSendMessage" defaultButton="true" styleClass="button-primary" minWidth="-Infinity"/>
-                </HBox>
+                <!-- Empty Placeholder -->
+                <VBox fx:id="emptyMailboxPlaceholder" alignment="CENTER" spacing="8" styleClass="empty-placeholder" visible="false" managed="false">
+                    <Label text="📭" style="-fx-font-size: 32px;"/>
+                    <Label text="Thư mục này hiện đang trống" styleClass="empty-placeholder-title"/>
+                    <Label text="Không có thư điện tử nào ở đây." styleClass="empty-placeholder-desc"/>
+                </VBox>
             </VBox>
         </center>
 
-        <!-- RIGHT DRAWER: PANEL QUẢN LÝ KÊNH (MEDIA & TỆP TIN) -->
+        <!-- RIGHT: MAIL DETAIL (PANEL CHI TIẾT THƯ) -->
         <right>
-            <VBox fx:id="channelMediaPanel" styleClass="channel-panel" spacing="0">
-                <!-- Panel Header -->
-                <HBox alignment="CENTER_LEFT" styleClass="channel-panel-header">
-                    <Label text="Quản lý Kênh" styleClass="brand-title-medium"/>
+            <VBox styleClass="mail-detail-panel" prefWidth="480" HBox.hgrow="ALWAYS">
+                <!-- Detail Header Toolbar -->
+                <HBox alignment="CENTER_LEFT" spacing="8" styleClass="mail-detail-header">
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Button fx:id="btnReply" text="↩️ Trả lời" onAction="#onReplyMail" styleClass="button-secondary" minWidth="-Infinity"/>
+                        <Button fx:id="btnReplyAll" text="↩️↩️ Trả lời tất cả" onAction="#onReplyAllMail" styleClass="button-secondary" minWidth="-Infinity"/>
+                        <Button fx:id="btnForward" text="➡️ Chuyển tiếp" onAction="#onForwardMail" styleClass="button-secondary" minWidth="-Infinity"/>
+                    </HBox>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <Button text="✕" onAction="#onCloseMediaPanel" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button fx:id="btnToggleStarDetail" text="⭐" onAction="#onToggleStarDetail" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button fx:id="btnDeleteDetail" text="🗑️ Xóa" onAction="#onDeleteCurrentMail" styleClass="button-danger" minWidth="-Infinity"/>
                 </HBox>
 
-                <!-- Panel Content Scroll -->
-                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
-                    <VBox spacing="14">
-                        <padding><Insets top="12" right="14" bottom="12" left="14"/></padding>
+                <!-- Detail Content Container -->
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="chat-container">
+                    <VBox fx:id="mailDetailContainer" spacing="14">
+                        <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
 
-                        <!-- Section 1: Images & GIFs -->
-                        <VBox spacing="6">
-                            <Label text="ẢNH &amp; GIF ĐÃ CHIA SẺ" styleClass="channel-section-title"/>
-                            <FlowPane fx:id="imagesGalleryPane" styleClass="gallery-flow-pane"/>
-                            <Label fx:id="noImagesLabel" text="Chưa có hình ảnh nào" styleClass="caption-muted"/>
-                        </VBox>
+                        <!-- Subject -->
+                        <Label fx:id="detailSubjectLabel" text="Chọn một thư để xem nội dung" styleClass="mail-detail-subject" wrapText="true"/>
+
+                        <!-- Sender & Metadata Card -->
+                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="info-banner">
+                            <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+                            <StackPane styleClass="avatar-circle">
+                                <Label fx:id="detailAvatarLabel" text="?" styleClass="avatar-text"/>
+                            </StackPane>
+                            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                                <HBox alignment="CENTER_LEFT" spacing="6">
+                                    <Label fx:id="detailSenderLabel" text="Người gửi" styleClass="user-name-label"/>
+                                    <Label fx:id="detailTimeLabel" text="" styleClass="caption-muted"/>
+                                </HBox>
+                                <Label fx:id="detailRecipientsLabel" text="Đến: tôi" styleClass="caption-muted" wrapText="true"/>
+                                <Label fx:id="detailCcLabel" text="" styleClass="caption-muted" wrapText="true" visible="false" managed="false"/>
+                            </VBox>
+                        </HBox>
 
                         <Separator styleClass="panel-separator"/>
 
-                        <!-- Section 2: Files & Documents -->
-                        <VBox spacing="6">
-                            <Label text="TỆP TIN &amp; TÀI LIỆU" styleClass="channel-section-title"/>
-                            <VBox fx:id="filesListPane" spacing="6"/>
-                            <Label fx:id="noFilesLabel" text="Chưa có tệp tin nào" styleClass="caption-muted"/>
+                        <!-- Email Body Text -->
+                        <VBox styleClass="mail-detail-body-container" minHeight="180">
+                            <Label fx:id="detailBodyLabel" text="" wrapText="true" styleClass="mail-detail-body-text"/>
                         </VBox>
 
-                        <Separator styleClass="panel-separator"/>
-
-                        <!-- Section 3: UDP Mini Logs -->
-                        <VBox spacing="6">
-                            <HBox alignment="CENTER_LEFT">
-                                <Label text="NHẬT KÝ MẠNG UDP" styleClass="channel-section-title"/>
-                                <Region HBox.hgrow="ALWAYS"/>
-                                <Button text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
+                        <!-- Attachments Section -->
+                        <VBox fx:id="attachmentsSection" spacing="8" visible="false" managed="false">
+                            <Separator styleClass="panel-separator"/>
+                            <HBox alignment="CENTER_LEFT" spacing="8">
+                                <Label fx:id="attachmentsHeaderLabel" text="📎 Tệp đính kèm (0):" styleClass="card-title"/>
                             </HBox>
-                            <TextArea fx:id="logArea" prefRowCount="5" editable="false" wrapText="true" styleClass="mini-log-box"/>
+                            <FlowPane fx:id="attachmentsFlowPane" hgap="10" vgap="10"/>
                         </VBox>
                     </VBox>
                 </ScrollPane>
             </VBox>
         </right>
+
+        <!-- BOTTOM: COLLAPSIBLE UDP MINI LOGS -->
+        <bottom>
+            <VBox fx:id="logDrawer" styleClass="channel-panel" visible="false" managed="false" maxHeight="150">
+                <HBox alignment="CENTER_LEFT" styleClass="channel-panel-header">
+                    <Label text="📋 Nhật ký mạng UDP" styleClass="channel-section-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
+                    <Button text="✕" onAction="#onToggleLogDrawer" styleClass="button-secondary" minWidth="-Infinity"/>
+                </HBox>
+                <TextArea fx:id="logArea" prefRowCount="4" editable="false" wrapText="true" styleClass="mini-log-box"/>
+            </VBox>
+        </bottom>
     </BorderPane>
+
+    <!-- ============================================== -->
+    <!-- FLOATING COMPOSE EMAIL MODAL (GMAIL STYLE)     -->
+    <!-- ============================================== -->
+    <VBox fx:id="composeOverlay" alignment="CENTER" styleClass="screen-container"
+          style="-fx-background-color: rgba(5, 8, 15, 0.75);" visible="false" managed="false">
+        <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+        <VBox maxWidth="620" prefWidth="600" maxHeight="620" styleClass="compose-modal-card">
+            <!-- Header -->
+            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="compose-header">
+                <Label fx:id="composeTitleLabel" text="✉  Thư mới" styleClass="brand-title-medium"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="✕" onAction="#onCloseCompose" styleClass="button-secondary" minWidth="-Infinity"/>
+            </HBox>
+
+            <!-- Form Fields -->
+            <VBox spacing="0">
+                <!-- To -->
+                <HBox alignment="CENTER_LEFT" spacing="8" styleClass="compose-input-row">
+                    <Label text="Đến:" styleClass="input-label" prefWidth="45"/>
+                    <TextField fx:id="composeToField" promptText="Nhập tên người nhận (phân cách bằng dấu phẩy, ví dụ: bob, charlie)"
+                               styleClass="compose-field" HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnToggleCcBcc" text="CC / BCC" onAction="#onToggleCcBcc" styleClass="button-secondary" minWidth="-Infinity"/>
+                </HBox>
+
+                <!-- CC / BCC (collapsible) -->
+                <VBox fx:id="ccBccContainer" visible="false" managed="false">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="compose-input-row">
+                        <Label text="CC:" styleClass="input-label" prefWidth="45"/>
+                        <TextField fx:id="composeCcField" promptText="Người nhận bản sao..." styleClass="compose-field" HBox.hgrow="ALWAYS"/>
+                    </HBox>
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="compose-input-row">
+                        <Label text="BCC:" styleClass="input-label" prefWidth="45"/>
+                        <TextField fx:id="composeBccField" promptText="Người nhận bản sao ẩn..." styleClass="compose-field" HBox.hgrow="ALWAYS"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Subject -->
+                <HBox alignment="CENTER_LEFT" spacing="8" styleClass="compose-input-row">
+                    <Label text="Chủ đề:" styleClass="input-label" prefWidth="45"/>
+                    <TextField fx:id="composeSubjectField" promptText="Tiêu đề thư..." styleClass="compose-field" HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <!-- Body Area -->
+                <TextArea fx:id="composeBodyArea" promptText="Soạn nội dung thư ở đây..."
+                          prefRowCount="10" wrapText="true" styleClass="compose-body-area"/>
+
+                <!-- Attached Files Chips -->
+                <VBox fx:id="composeAttachmentsBox" spacing="6" styleClass="compose-input-row" visible="false" managed="false">
+                    <Label text="Tệp đính kèm:" styleClass="caption-muted"/>
+                    <FlowPane fx:id="composeAttachmentsFlowPane" hgap="8" vgap="6"/>
+                </VBox>
+
+                <!-- Upload Progress -->
+                <ProgressBar fx:id="composeUploadProgress" maxWidth="Infinity" progress="0.0"
+                             styleClass="modern-progress-bar" visible="false" managed="false"/>
+            </VBox>
+
+            <!-- Bottom Actions -->
+            <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 10px 14px; -fx-background-color: #0E1424; -fx-border-radius: 0 0 10px 10px; -fx-background-radius: 0 0 10px 10px;">
+                <Button fx:id="btnSendMailAction" text="📤 Gửi thư" onAction="#onSendMail" styleClass="button-primary" minWidth="-Infinity"/>
+                <Button fx:id="btnAttachFile" text="📎 Đính kèm tệp" onAction="#onAttachFile" styleClass="button-secondary" minWidth="-Infinity"/>
+                <Button fx:id="btnSaveDraftAction" text="💾 Lưu nháp" onAction="#onSaveDraft" styleClass="button-secondary" minWidth="-Infinity"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="🗑️ Hủy" onAction="#onCloseCompose" styleClass="button-danger" minWidth="-Infinity"/>
+            </HBox>
+        </VBox>
+    </VBox>
 
 </StackPane>
