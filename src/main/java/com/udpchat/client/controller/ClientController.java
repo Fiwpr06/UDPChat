@@ -1,17 +1,14 @@
 package com.udpchat.client.controller;
 
 import com.udpchat.client.service.ClientService;
-import com.udpchat.client.util.ImageHelper;
 import com.udpchat.shared.model.Attachment;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
 import com.udpchat.shared.util.UDPUtil;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
@@ -24,7 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * Điều khiển toàn bộ giao diện Máy khách (Mail Client) theo chuẩn Gmail
+ * Điều khiển giao diện Máy khách (Mail Client) theo đúng chuẩn Gmail
  */
 public class ClientController {
 
@@ -70,7 +67,8 @@ public class ClientController {
     @FXML private Button btnToggleLog;
     @FXML private Button btnLogout;
 
-    // CENTER: MAIL LIST
+    // SWAPPABLE VIEWS: LIST VIEW VS DETAIL VIEW (GMAIL STYLE)
+    @FXML private VBox mailListView;
     @FXML private Label currentFolderTitle;
     @FXML private Button btnPrevPage;
     @FXML private Label pageInfoLabel;
@@ -79,18 +77,19 @@ public class ClientController {
     @FXML private VBox mailListBox;
     @FXML private VBox emptyMailboxPlaceholder;
 
-    // RIGHT: MAIL DETAIL
+    // DETAIL VIEW
+    @FXML private VBox mailDetailView;
+    @FXML private Button btnBackToList;
     @FXML private Button btnReply;
     @FXML private Button btnReplyAll;
     @FXML private Button btnForward;
     @FXML private Button btnToggleStarDetail;
     @FXML private Button btnDeleteDetail;
+    @FXML private Label detailTimeLabel;
 
-    @FXML private VBox mailDetailContainer;
     @FXML private Label detailSubjectLabel;
     @FXML private Label detailAvatarLabel;
     @FXML private Label detailSenderLabel;
-    @FXML private Label detailTimeLabel;
     @FXML private Label detailRecipientsLabel;
     @FXML private Label detailCcLabel;
     @FXML private Label detailBodyLabel;
@@ -258,6 +257,7 @@ public class ClientController {
                         currentUserBadge.setText(username);
                         userEmailDisplayLabel.setText(username + "@udpmail");
                         showMainMailScreen();
+                        showMailListView();
                         loadMails(MailFolder.INBOX, 1);
                     } else {
                         showAuthStatus("Đăng ký thành công! Hãy chuyển sang Đăng nhập.", true);
@@ -330,12 +330,13 @@ public class ClientController {
         }
 
         currentFolderTitle.setText(folder.getDisplayName());
+        showMailListView();
         loadMails(folder, 1);
-        clearDetailView();
     }
 
     @FXML
     private void onRefreshCurrentFolder() {
+        showMailListView();
         loadMails(currentFolder, currentPage);
     }
 
@@ -354,7 +355,30 @@ public class ClientController {
     }
 
     // =========================================================================
-    // MAIL LIST RENDERING
+    // VIEW SWITCHING: LIST VIEW <-> DETAIL VIEW (GMAIL STYLE)
+    // =========================================================================
+    private void showMailListView() {
+        mailListView.setVisible(true);
+        mailListView.setManaged(true);
+        mailDetailView.setVisible(false);
+        mailDetailView.setManaged(false);
+    }
+
+    private void showMailDetailView() {
+        mailListView.setVisible(false);
+        mailListView.setManaged(false);
+        mailDetailView.setVisible(true);
+        mailDetailView.setManaged(true);
+    }
+
+    @FXML
+    private void onBackToList() {
+        showMailListView();
+        loadMails(currentFolder, currentPage);
+    }
+
+    // =========================================================================
+    // MAIL LIST RENDERING (GMAIL HORIZONTAL ROW STYLE)
     // =========================================================================
     private void loadMails(MailFolder folder, int page) {
         new Thread(() -> {
@@ -388,122 +412,119 @@ public class ClientController {
         if (emails == null || emails.isEmpty()) {
             emptyMailboxPlaceholder.setVisible(true);
             emptyMailboxPlaceholder.setManaged(true);
+            mailListScrollPane.setVisible(false);
             return;
         }
 
         emptyMailboxPlaceholder.setVisible(false);
         emptyMailboxPlaceholder.setManaged(false);
+        mailListScrollPane.setVisible(true);
 
         for (Email mail : emails) {
-            VBox card = createMailCard(mail);
-            mailListBox.getChildren().add(card);
+            HBox row = createMailRow(mail);
+            mailListBox.getChildren().add(row);
         }
     }
 
-    private VBox createMailCard(Email mail) {
-        VBox card = new VBox(4);
-        card.getStyleClass().add("mail-item-card");
+    private HBox createMailRow(Email mail) {
+        HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("mail-row-item");
         if (!mail.isRead()) {
-            card.getStyleClass().add("mail-item-unread");
-        }
-        if (currentSelectedMail != null && currentSelectedMail.getId().equals(mail.getId())) {
-            card.getStyleClass().add("mail-item-selected");
+            row.getStyleClass().add("mail-row-unread");
         }
 
-        // Row 1: Star, Sender/Recipient, Attachment Icon, Time
-        HBox topRow = new HBox(8);
-        topRow.setAlignment(Pos.CENTER_LEFT);
-
-        // Unread indicator dot
+        // 1. Unread indicator dot
         if (!mail.isRead()) {
             Region dot = new Region();
-            dot.getStyleClass().add("unread-indicator-dot");
-            topRow.getChildren().add(dot);
+            dot.getStyleClass().add("unread-dot");
+            row.getChildren().add(dot);
+        } else {
+            Region spacer = new Region();
+            spacer.setPrefWidth(8);
+            row.getChildren().add(spacer);
         }
 
-        // Star Button
-        Button starBtn = new Button(mail.isStarred() ? "⭐" : "☆");
-        starBtn.getStyleClass().add("star-icon-btn");
-        if (mail.isStarred()) starBtn.getStyleClass().add("star-icon-active");
+        // 2. Star Button (★ / ☆)
+        Button starBtn = new Button(mail.isStarred() ? "★" : "☆");
+        starBtn.getStyleClass().add("star-btn");
+        if (mail.isStarred()) starBtn.getStyleClass().add("star-btn-active");
         starBtn.setOnAction(e -> {
             e.consume();
             boolean newStarred = !mail.isStarred();
             mail.setStarred(newStarred);
-            starBtn.setText(newStarred ? "⭐" : "☆");
-            if (newStarred) starBtn.getStyleClass().add("star-icon-active");
-            else starBtn.getStyleClass().remove("star-icon-active");
+            starBtn.setText(newStarred ? "★" : "☆");
+            if (newStarred) starBtn.getStyleClass().add("star-btn-active");
+            else starBtn.getStyleClass().remove("star-btn-active");
             new Thread(() -> service.toggleStar(mail.getId(), newStarred)).start();
         });
-        topRow.getChildren().add(starBtn);
+        row.getChildren().add(starBtn);
 
-        // Sender or Recipient display
+        // 3. Sender or Recipient display (Fixed width ~140px)
         String displayName = currentFolder == MailFolder.SENT ? "Tới: " + mail.getRecipientsDisplay() : mail.getSender();
         Label senderLabel = new Label(displayName);
-        senderLabel.getStyleClass().add("mail-sender-text");
-        HBox.setHgrow(senderLabel, Priority.ALWAYS);
-        topRow.getChildren().add(senderLabel);
+        senderLabel.getStyleClass().add("mail-row-sender");
+        if (!mail.isRead()) {
+            senderLabel.getStyleClass().add("mail-row-sender-unread");
+        }
+        row.getChildren().add(senderLabel);
 
-        // Attachment clip icon
-        if (mail.hasAttachments()) {
-            Label clipLabel = new Label("📎");
-            clipLabel.setStyle("-fx-font-size: 11px;");
-            topRow.getChildren().add(clipLabel);
+        // 4. Middle: Subject + " - " + Snippet preview
+        HBox middleBox = new HBox(6);
+        middleBox.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(middleBox, Priority.ALWAYS);
+
+        Label subjectLabel = new Label(mail.getSubject());
+        subjectLabel.getStyleClass().add("mail-row-subject");
+        if (!mail.isRead()) {
+            subjectLabel.getStyleClass().add("mail-row-subject-unread");
         }
 
-        // Time
+        Label hyphenLabel = new Label("-");
+        hyphenLabel.setStyle("-fx-text-fill: #475569;");
+
+        Label snippetLabel = new Label(mail.getPreview(80));
+        snippetLabel.getStyleClass().add("mail-row-snippet");
+
+        middleBox.getChildren().addAll(subjectLabel, hyphenLabel, snippetLabel);
+        row.getChildren().add(middleBox);
+
+        // 5. Attachment badge if any
+        if (mail.hasAttachments()) {
+            Label clipLabel = new Label("Tệp");
+            clipLabel.getStyleClass().add("attachment-mini-badge");
+            row.getChildren().add(clipLabel);
+        }
+
+        // 6. Time (right-aligned)
         String displayTime = formatShortTime(mail.getSentAt());
         Label timeLabel = new Label(displayTime);
-        timeLabel.getStyleClass().add("mail-time-text");
-        topRow.getChildren().add(timeLabel);
+        timeLabel.getStyleClass().add("mail-row-time");
+        row.getChildren().add(timeLabel);
 
-        card.getChildren().add(topRow);
+        // Click handler: Open full-width detail view (Gmail style)
+        row.setOnMouseClicked(e -> openMailDetail(mail));
 
-        // Row 2: Subject
-        Label subjectLabel = new Label(mail.getSubject());
-        subjectLabel.getStyleClass().add("mail-subject-text");
-        card.getChildren().add(subjectLabel);
-
-        // Row 3: Snippet preview
-        Label snippetLabel = new Label(mail.getPreview(70));
-        snippetLabel.getStyleClass().add("mail-snippet-text");
-        card.getChildren().add(snippetLabel);
-
-        // Click handler to open detail
-        card.setOnMouseClicked(e -> selectMail(mail, card));
-
-        return card;
+        return row;
     }
 
-    private void selectMail(Email mail, VBox card) {
+    private void openMailDetail(Email mail) {
         currentSelectedMail = mail;
-
-        // Update list styling
-        for (var node : mailListBox.getChildren()) {
-            node.getStyleClass().remove("mail-item-selected");
-        }
-        card.getStyleClass().add("mail-item-selected");
-
-        // Mark as read visually
-        if (!mail.isRead()) {
-            mail.setRead(true);
-            card.getStyleClass().remove("mail-item-unread");
-        }
 
         // Fetch full mail detail from server
         new Thread(() -> {
             Email full = service.readMail(mail.getId());
             Platform.runLater(() -> {
-                if (full != null) {
-                    displayMailDetail(full);
-                } else {
-                    displayMailDetail(mail);
-                }
+                Email target = full != null ? full : mail;
+                target.setRead(true);
+                displayMailDetail(target);
+                showMailDetailView();
             });
         }).start();
     }
 
     // =========================================================================
-    // RIGHT PANEL: MAIL DETAIL
+    // DETAIL VIEW CONTENT DISPLAY
     // =========================================================================
     private void displayMailDetail(Email mail) {
         currentSelectedMail = mail;
@@ -527,13 +548,13 @@ public class ClientController {
         }
 
         detailBodyLabel.setText(mail.getBody());
-        btnToggleStarDetail.setText(mail.isStarred() ? "⭐ Bỏ sao" : "⭐ Gắn sao");
+        btnToggleStarDetail.setText(mail.isStarred() ? "★ Bỏ sao" : "★ Gắn sao");
 
         // Attachments
         if (mail.hasAttachments()) {
             attachmentsSection.setVisible(true);
             attachmentsSection.setManaged(true);
-            attachmentsHeaderLabel.setText("📎 Tệp đính kèm (" + mail.getAttachmentCount() + "):");
+            attachmentsHeaderLabel.setText("Tệp đính kèm (" + mail.getAttachmentCount() + "):");
             attachmentsFlowPane.getChildren().clear();
 
             for (Attachment att : mail.getAttachments()) {
@@ -547,7 +568,7 @@ public class ClientController {
     }
 
     private HBox createAttachmentChip(Attachment att) {
-        HBox box = new HBox(8);
+        HBox box = new HBox(10);
         box.setAlignment(Pos.CENTER_LEFT);
         box.getStyleClass().add("attachment-card");
 
@@ -566,7 +587,7 @@ public class ClientController {
         box.getChildren().add(info);
 
         // Download button
-        Button btnDownload = new Button("⬇️ Tải về");
+        Button btnDownload = new Button("Tải về");
         btnDownload.getStyleClass().add("button-secondary");
         btnDownload.setOnAction(e -> {
             DirectoryChooser chooser = new DirectoryChooser();
@@ -589,27 +610,13 @@ public class ClientController {
         return box;
     }
 
-    private void clearDetailView() {
-        currentSelectedMail = null;
-        detailSubjectLabel.setText("Chọn một thư để xem nội dung");
-        detailSenderLabel.setText("Chưa chọn");
-        detailTimeLabel.setText("");
-        detailRecipientsLabel.setText("");
-        detailCcLabel.setText("");
-        detailBodyLabel.setText("");
-        detailAvatarLabel.setText("?");
-        attachmentsSection.setVisible(false);
-        attachmentsSection.setManaged(false);
-    }
-
     @FXML
     private void onToggleStarDetail() {
         if (currentSelectedMail == null) return;
         boolean newStarred = !currentSelectedMail.isStarred();
         currentSelectedMail.setStarred(newStarred);
-        btnToggleStarDetail.setText(newStarred ? "⭐ Bỏ sao" : "⭐ Gắn sao");
+        btnToggleStarDetail.setText(newStarred ? "★ Bỏ sao" : "★ Gắn sao");
         new Thread(() -> service.toggleStar(currentSelectedMail.getId(), newStarred)).start();
-        onRefreshCurrentFolder();
     }
 
     @FXML
@@ -619,8 +626,7 @@ public class ClientController {
         new Thread(() -> {
             service.deleteMail(currentSelectedMail.getId(), isTrash);
             Platform.runLater(() -> {
-                clearDetailView();
-                onRefreshCurrentFolder();
+                onBackToList();
             });
         }).start();
     }
@@ -630,7 +636,7 @@ public class ClientController {
     // =========================================================================
     @FXML
     private void onOpenCompose() {
-        composeTitleLabel.setText("✉  Thư mới");
+        composeTitleLabel.setText("Thư mới");
         composeToField.clear();
         composeCcField.clear();
         composeBccField.clear();
@@ -665,7 +671,7 @@ public class ClientController {
     private void onReplyMail() {
         if (currentSelectedMail == null) return;
         onOpenCompose();
-        composeTitleLabel.setText("↩️  Trả lời: " + currentSelectedMail.getSubject());
+        composeTitleLabel.setText("Trả lời: " + currentSelectedMail.getSubject());
         composeToField.setText(currentSelectedMail.getSender());
         String subj = currentSelectedMail.getSubject();
         if (!subj.startsWith("Re:")) subj = "Re: " + subj;
@@ -678,8 +684,7 @@ public class ClientController {
     private void onReplyAllMail() {
         if (currentSelectedMail == null) return;
         onReplyMail();
-        composeTitleLabel.setText("↩️↩️  Trả lời tất cả: " + currentSelectedMail.getSubject());
-        // Add CC from original recipients
+        composeTitleLabel.setText("Trả lời tất cả: " + currentSelectedMail.getSubject());
         List<String> ccList = new ArrayList<>(currentSelectedMail.getRecipients());
         if (currentSelectedMail.getCc() != null) ccList.addAll(currentSelectedMail.getCc());
         ccList.remove(service.getCurrentUsername());
@@ -695,7 +700,7 @@ public class ClientController {
     private void onForwardMail() {
         if (currentSelectedMail == null) return;
         onOpenCompose();
-        composeTitleLabel.setText("➡️  Chuyển tiếp: " + currentSelectedMail.getSubject());
+        composeTitleLabel.setText("Chuyển tiếp: " + currentSelectedMail.getSubject());
         composeToField.clear();
         String subj = currentSelectedMail.getSubject();
         if (!subj.startsWith("Fwd:")) subj = "Fwd: " + subj;
@@ -775,7 +780,7 @@ public class ClientController {
         btnSendMailAction.setDisable(true);
         composeUploadProgress.setVisible(true);
         composeUploadProgress.setManaged(true);
-        composeUploadProgress.setProgress(-1); // indeterminate
+        composeUploadProgress.setProgress(-1);
 
         new Thread(() -> {
             List<Attachment> attachments = new ArrayList<>();
@@ -810,6 +815,7 @@ public class ClientController {
 
                 if (sent) {
                     hideComposeOverlay();
+                    showMailListView();
                     if (currentFolder == MailFolder.SENT) {
                         onRefreshCurrentFolder();
                     }
@@ -833,6 +839,7 @@ public class ClientController {
             service.saveDraft(draft);
             Platform.runLater(() -> {
                 hideComposeOverlay();
+                showMailListView();
                 if (currentFolder == MailFolder.DRAFTS) {
                     onRefreshCurrentFolder();
                 }
@@ -863,7 +870,8 @@ public class ClientController {
 
         btnClearSearch.setVisible(true);
         btnClearSearch.setManaged(true);
-        currentFolderTitle.setText("🔍 Kết quả tìm kiếm: '" + keyword + "'");
+        currentFolderTitle.setText("Kết quả tìm kiếm: '" + keyword + "'");
+        showMailListView();
 
         new Thread(() -> {
             List<Email> results = service.searchMail(keyword);
@@ -882,6 +890,7 @@ public class ClientController {
         btnClearSearch.setVisible(false);
         btnClearSearch.setManaged(false);
         currentFolderTitle.setText(currentFolder.getDisplayName());
+        showMailListView();
         loadMails(currentFolder, 1);
     }
 
@@ -890,12 +899,10 @@ public class ClientController {
     // =========================================================================
     private void handleNewMailPush(String sender, String subject, String mailId) {
         Platform.runLater(() -> {
-            appendLog("🔔 [THƯ MỚI]: Từ " + sender + " - '" + subject + "'");
-            // If in inbox, reload immediately!
+            appendLog("[THƯ MỚI]: Từ " + sender + " - '" + subject + "'");
             if (currentFolder == MailFolder.INBOX) {
                 loadMails(MailFolder.INBOX, currentPage);
             } else {
-                // Just update unread inbox count
                 new Thread(() -> {
                     ClientService.MailListResult res = service.listMails(MailFolder.INBOX, 1, 1);
                     Platform.runLater(() -> {
@@ -918,7 +925,7 @@ public class ClientController {
         boolean vis = !logDrawer.isVisible();
         logDrawer.setVisible(vis);
         logDrawer.setManaged(vis);
-        btnToggleLog.setText(vis ? "✕ Đóng Nhật ký UDP" : "📋 Nhật ký UDP");
+        btnToggleLog.setText(vis ? "✕ Đóng Nhật ký" : "Nhật ký UDP");
     }
 
     @FXML
@@ -976,7 +983,7 @@ public class ClientController {
         content.putString(text);
         clipboard.setContent(content);
 
-        btn.setText("✓ Đã copy!");
+        btn.setText("Đã copy!");
         new Thread(() -> {
             try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
             Platform.runLater(() -> btn.setText(originalText));
@@ -986,7 +993,6 @@ public class ClientController {
     private String formatShortTime(String dateTimeStr) {
         if (dateTimeStr == null || dateTimeStr.length() < 16) return "";
         try {
-            // dateTimeStr is "yyyy-MM-dd HH:mm:ss"
             String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
             if (dateTimeStr.startsWith(today)) {
                 return dateTimeStr.substring(11, 16); // "HH:mm"
