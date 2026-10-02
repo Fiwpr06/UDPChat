@@ -20,7 +20,7 @@ public class ClientApp extends Application {
         
         controller = loader.getController();
 
-        Scene scene = new Scene(root, 880, 650);
+        Scene scene = new Scene(root, 1020, 680);
         
         URL commonCss = getClass().getResource("/com/udpchat/shared/styles/common.css");
         URL clientCss = getClass().getResource("/com/udpchat/client/styles/client.css");
@@ -28,10 +28,10 @@ public class ClientApp extends Application {
         if (commonCss != null) scene.getStylesheets().add(commonCss.toExternalForm());
         if (clientCss != null) scene.getStylesheets().add(clientCss.toExternalForm());
 
-        primaryStage.setTitle("UDP Chat Client");
+        primaryStage.setTitle("UDP Mail Client");
         primaryStage.setScene(scene);
-        primaryStage.setMinWidth(820);
-        primaryStage.setMinHeight(580);
+        primaryStage.setMinWidth(900);
+        primaryStage.setMinHeight(600);
         primaryStage.show();
     }
 
