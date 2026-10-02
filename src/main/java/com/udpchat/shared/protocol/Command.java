@@ -13,6 +13,7 @@ public enum Command {
     SEND_MAIL,
     LIST_MAIL,
     READ_MAIL,
+    READ_THREAD,
     DELETE_MAIL,
     STAR_MAIL,
     MARK_READ,

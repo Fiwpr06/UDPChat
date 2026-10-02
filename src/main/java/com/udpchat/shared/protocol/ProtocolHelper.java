@@ -77,6 +77,10 @@ public class ProtocolHelper {
         return buildRequest(Command.READ_MAIL, mailId);
     }
 
+    public static String buildReadThreadRequest(String threadId) {
+        return buildRequest(Command.READ_THREAD, threadId);
+    }
+
     public static String buildDeleteMailRequest(String mailId, boolean permanent) {
         return buildRequest(Command.DELETE_MAIL, mailId, String.valueOf(permanent));
     }
