@@ -216,6 +216,28 @@ public class ClientService {
     }
 
     /**
+     * Lấy toàn bộ các email trong luồng hội thoại theo threadId
+     */
+    public List<Email> getThreadMessages(String threadId) {
+        if (!isLoggedIn() || threadId == null || threadId.isEmpty()) return Collections.emptyList();
+        try {
+            String request = ProtocolHelper.buildReadThreadRequest(threadId);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
+                if (parts.length >= 3) {
+                    String base64 = parts[2];
+                    String json = JsonUtil.decodeBase64(base64);
+                    return JsonUtil.emailListFromJson(json);
+                }
+            }
+        } catch (Exception e) {
+            log("Lỗi đọc luồng hội thoại: " + e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
      * Xóa email (vào Thùng rác hoặc xóa vĩnh viễn)
      */
     public boolean deleteMail(String mailId, boolean permanent) {
