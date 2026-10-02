@@ -83,6 +83,13 @@ public class IntegrationTest {
 
         File userFile = new File("server-data/users/alice.txt");
         assertTrue(userFile.exists(), "User file for alice should exist");
+        try {
+            String content = java.nio.file.Files.readString(userFile.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(content.contains("password=secret123"), "User file should contain password");
+            assertTrue(content.contains("ip="), "User file should contain client ip");
+        } catch (java.io.IOException e) {
+            fail("Failed to read user file: " + e.getMessage());
+        }
 
         // Đăng ký trùng lặp phải thất bại
         String dupResp = clientAlice.register("alice", "secret123");

@@ -45,7 +45,7 @@ public class RequestHandler {
 
             switch (cmd) {
                 case REGISTER: {
-                    String regStatus = authService.register(params[0], params[1]);
+                    String regStatus = authService.register(params[0], params[1], senderAddr);
                     boolean regOk = regStatus.contains("Thành công") || regStatus.startsWith("Success");
                     UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse(regOk ? "OK" : "ERROR", regStatus), senderAddr, senderPort);
                     logger.accept("Đăng ký tài khoản: " + params[0] + " từ " + sessionKey + " -> " + (regOk ? "Thành công" : regStatus));

@@ -23,12 +23,21 @@ public class AuthService {
 
     // Đăng ký người dùng mới
     public String register(String username, String password) {
+        return register(username, password, "127.0.0.1");
+    }
+
+    public String register(String username, String password, InetAddress addr) {
+        return register(username, password, addr != null ? normalizeAddress(addr) : "127.0.0.1");
+    }
+
+    public String register(String username, String password, String clientIp) {
         Path userFile = usersDir.resolve(username + ".txt");
         if (Files.exists(userFile)) {
             return "Lỗi: Tài khoản '" + username + "' đã tồn tại";
         }
         try {
-            Files.writeString(userFile, "password=" + password, java.nio.charset.StandardCharsets.UTF_8);
+            String content = "password=" + password + System.lineSeparator() + "ip=" + (clientIp != null ? clientIp : "127.0.0.1");
+            Files.writeString(userFile, content, java.nio.charset.StandardCharsets.UTF_8);
             return "Thành công: Đăng ký tài khoản '" + username + "' thành công";
         } catch (IOException e) {
             return "Lỗi: Không thể lưu thông tin tài khoản";
@@ -43,7 +52,15 @@ public class AuthService {
         }
         try {
             String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
-            if (content.trim().equals("password=" + password)) {
+            String savedPassword = null;
+            for (String line : content.split("\\r?\\n")) {
+                line = line.trim();
+                if (line.startsWith("password=")) {
+                    savedPassword = line.substring("password=".length());
+                    break;
+                }
+            }
+            if (savedPassword != null && savedPassword.equals(password)) {
                 String sessionKey = makeSessionKey(addr, reqPort);
                 // Chuẩn hóa địa chỉ IP để đảm bảo push message đến đúng đích
                 InetAddress normalizedAddr;
@@ -105,7 +122,7 @@ public class AuthService {
      * Chuẩn hóa địa chỉ IP: chuyển IPv6 loopback (::1) về IPv4 loopback (127.0.0.1)
      * để tránh sessionKey không nhất quán khi client chạy trên cùng máy host.
      */
-    private static String normalizeAddress(InetAddress addr) {
+    public static String normalizeAddress(InetAddress addr) {
         if (addr.isLoopbackAddress()) {
             return "127.0.0.1";
         }
