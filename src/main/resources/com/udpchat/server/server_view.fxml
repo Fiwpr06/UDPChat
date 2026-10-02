@@ -15,10 +15,10 @@
     <!-- Title Bar Header -->
     <HBox alignment="CENTER_LEFT" spacing="12" styleClass="card-panel">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <Label text="UDP" styleClass="brand-icon-badge"/>
+        <Label text="✉ MAIL" styleClass="brand-icon-badge"/>
         <VBox spacing="2">
-            <Label text="UDP CHAT SERVER" styleClass="brand-title-medium"/>
-            <Label text="Máy chủ định tuyến tin nhắn tức thời &amp; Quản lý kho tệp UDP" styleClass="brand-subtitle"/>
+            <Label text="UDP MAIL SERVER" styleClass="brand-title-medium"/>
+            <Label text="Máy chủ Thư điện tử &amp; Quản lý tệp đính kèm thuần UDP (Mô hình Gmail)" styleClass="brand-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
         <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
@@ -43,24 +43,44 @@
         <Button fx:id="stopButton" text="Dừng Server" onAction="#onStop" styleClass="button-danger" minWidth="-Infinity"/>
     </HBox>
 
+    <!-- Statistics Panel -->
+    <HBox styleClass="card-panel" spacing="20" alignment="CENTER_LEFT">
+        <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="✉ Tổng số thư:" styleClass="input-label"/>
+            <Label fx:id="totalEmailsLabel" text="0" styleClass="badge-ip"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="📅 Thư hôm nay:" styleClass="input-label"/>
+            <Label fx:id="todayEmailsLabel" text="0" styleClass="badge-ip"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="📎 Tệp đính kèm:" styleClass="input-label"/>
+            <Label fx:id="attachmentsCountLabel" text="0" styleClass="badge-ip"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="💾 Dung lượng lưu trữ:" styleClass="input-label"/>
+            <Label fx:id="storageSizeLabel" text="0 KB" styleClass="badge-ip"/>
+        </HBox>
+    </HBox>
+
     <!-- Online Clients -->
     <VBox styleClass="card-panel" spacing="8">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label fx:id="onlineCountLabel" text="Danh sách Client đang online: 0" styleClass="card-title"/>
+            <Label fx:id="onlineCountLabel" text="Người dùng đang online: 0" styleClass="card-title"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="copyClientIpButton" text="Sao chép IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>
-        <ListView fx:id="clientListView" prefHeight="130" styleClass="modern-list-view"/>
+        <ListView fx:id="clientListView" prefHeight="100" styleClass="modern-list-view"/>
     </VBox>
 
     <!-- Activity Log -->
     <VBox fx:id="logContainer" styleClass="card-panel" spacing="8" VBox.vgrow="ALWAYS">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="Nhật Ký Hoạt Động &amp; Gói Tin Mạng" styleClass="card-title"/>
+            <Label text="Nhật Ký Máy Chủ &amp; Giao Thức UDP" styleClass="card-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="openLogFileButton" text="Mở file Log" onAction="#onOpenLogFile" styleClass="button-secondary" minWidth="-Infinity"/>
             <Button fx:id="toggleLogButton" text="Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
             <Button fx:id="clearLogButton" text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
         </HBox>

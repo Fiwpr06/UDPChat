@@ -5,7 +5,7 @@ import com.udpchat.server.network.RequestHandler;
 import com.udpchat.server.network.ServerNetwork;
 import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
-import com.udpchat.server.service.MessageService;
+import com.udpchat.server.service.MailService;
 import com.udpchat.shared.util.UDPUtil;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -18,9 +18,9 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
-import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ServerController {
@@ -30,19 +30,25 @@ public class ServerController {
     @FXML private Button startButton;
     @FXML private Button stopButton;
     @FXML private Label statusLabel;
-    @FXML private Label onlineCountLabel;
     @FXML private Region statusIndicator;
+
+    @FXML private Label totalEmailsLabel;
+    @FXML private Label todayEmailsLabel;
+    @FXML private Label attachmentsCountLabel;
+    @FXML private Label storageSizeLabel;
+
+    @FXML private Label onlineCountLabel;
     @FXML private Button copyClientIpButton;
     @FXML private ListView<String> clientListView;
+
     @FXML private VBox logContainer;
     @FXML private TextArea logArea;
     @FXML private Button toggleLogButton;
     @FXML private Button clearLogButton;
-    @FXML private Button openLogFileButton;
 
     private ServerNetwork network;
     private AuthService authService;
-    private MessageService messageService;
+    private MailService mailService;
     private FileService fileService;
     private Thread serverThread;
     private Timeline updateTimeline;
@@ -55,13 +61,18 @@ public class ServerController {
         stopButton.setDisable(true);
         statusLabel.setText("Đã dừng");
         statusIndicator.getStyleClass().add("status-offline");
-        
+
         authService = new AuthService();
-        messageService = new MessageService();
+        mailService = new MailService();
         fileService = new FileService();
-        
-        updateTimeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> updateOnlineClients()));
+
+        updateTimeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
+            updateOnlineClients();
+            updateServerStatistics();
+        }));
         updateTimeline.setCycleCount(Timeline.INDEFINITE);
+
+        updateServerStatistics();
     }
 
     @FXML
@@ -74,9 +85,9 @@ public class ServerController {
             return;
         }
 
-        RequestHandler handler = new RequestHandler(authService, messageService, fileService, this::log);
+        RequestHandler handler = new RequestHandler(authService, mailService, fileService, this::log);
         network = new ServerNetwork(handler, this::log);
-        
+
         serverThread = new Thread(() -> network.start(port));
         serverThread.setDaemon(true);
         serverThread.start();
@@ -96,7 +107,7 @@ public class ServerController {
             network.stop();
         }
         updateTimeline.stop();
-        
+
         startButton.setDisable(false);
         stopButton.setDisable(true);
         portField.setDisable(false);
@@ -115,10 +126,10 @@ public class ServerController {
     private void onCopyClientIp() {
         String selected = clientListView.getSelectionModel().getSelectedItem();
         if (selected == null || selected.isEmpty()) {
-            log("Vui lòng chọn một client trong danh sách trước khi sao chép IP.");
+            log("Vui lòng chọn một người dùng trong danh sách trước khi sao chép IP.");
             return;
         }
-        
+
         String ip = selected;
         int start = selected.indexOf('(');
         int colon = selected.indexOf(':');
@@ -140,21 +151,6 @@ public class ServerController {
     private void onClearLog() {
         logArea.clear();
         log("Đã xóa nhật ký hiển thị trên màn hình.");
-    }
-
-    @FXML
-    private void onOpenLogFile() {
-        File logFile = new File("server-data/messages/messages.log");
-        if (logFile.exists()) {
-            try {
-                new ProcessBuilder("notepad.exe", logFile.getAbsolutePath()).start();
-                log("Đã mở file nhật ký tin nhắn bằng Notepad: " + logFile.getAbsolutePath());
-            } catch (Exception e) {
-                log("Không thể mở Notepad: " + e.getMessage() + ". File tại: " + logFile.getAbsolutePath());
-            }
-        } else {
-            log("Chưa có dữ liệu tin nhắn (file messages.log chưa được tạo).");
-        }
     }
 
     private void copyToClipboard(String text, Button btn, String originalText) {
@@ -181,12 +177,34 @@ public class ServerController {
         if (authService != null) {
             int count = authService.getOnlineCount();
             Platform.runLater(() -> {
-                onlineCountLabel.setText("Đang online: " + count);
+                onlineCountLabel.setText("Người dùng đang online: " + count);
                 clientListView.getItems().setAll(
-                    authService.getOnlineSessions().stream()
-                        .map(ClientSession::toString)
-                        .collect(Collectors.toList())
+                        authService.getOnlineSessions().stream()
+                                .map(ClientSession::toString)
+                                .collect(Collectors.toList())
                 );
+            });
+        }
+    }
+
+    private void updateServerStatistics() {
+        if (mailService != null && fileService != null) {
+            Map<String, Object> stats = mailService.getServerStats();
+            long total = ((Number) stats.getOrDefault("totalEmails", 0)).longValue();
+            long today = ((Number) stats.getOrDefault("todayEmails", 0)).longValue();
+            int attachCount = fileService.getAttachmentCount();
+            long attachBytes = fileService.getTotalAttachmentsSize();
+
+            String formattedSize;
+            if (attachBytes < 1024) formattedSize = attachBytes + " B";
+            else if (attachBytes < 1024 * 1024) formattedSize = String.format("%.1f KB", attachBytes / 1024.0);
+            else formattedSize = String.format("%.2f MB", attachBytes / (1024.0 * 1024.0));
+
+            Platform.runLater(() -> {
+                totalEmailsLabel.setText(String.valueOf(total));
+                todayEmailsLabel.setText(String.valueOf(today));
+                attachmentsCountLabel.setText(String.valueOf(attachCount));
+                storageSizeLabel.setText(formattedSize);
             });
         }
     }

@@ -19,7 +19,7 @@ public class ServerApp extends Application {
             scene.getStylesheets().add(getClass().getResource("/com/udpchat/server/styles/server.css").toExternalForm());
         } catch(Exception e){}
 
-        primaryStage.setTitle("UDP Chat Server");
+        primaryStage.setTitle("UDP Mail Server");
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(850);
         primaryStage.setMinHeight(600);
