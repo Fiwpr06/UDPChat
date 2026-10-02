@@ -2,29 +2,49 @@ package com.udpchat.client.service;
 
 import com.udpchat.client.network.ClientListener;
 import com.udpchat.client.network.ClientNetwork;
+import com.udpchat.shared.model.Email;
+import com.udpchat.shared.model.MailFolder;
 import com.udpchat.shared.protocol.Command;
 import com.udpchat.shared.protocol.ProtocolHelper;
 import com.udpchat.shared.protocol.UDPConstants;
+import com.udpchat.shared.util.JsonUtil;
 
 import java.io.File;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
-// Tầng logic xử lý nghiệp vụ, giao tiếp giữa giao diện và mạng.
+/**
+ * Tầng nghiệp vụ xử lý các thao tác Thư điện tử qua mạng UDP cho Client
+ */
 public class ClientService {
     private ClientNetwork network;
     private ClientListener listener;
     private Thread listenerThread;
     private String currentUsername;
+
     @FunctionalInterface
-    public interface StructuredMessageConsumer {
-        void accept(String sender, String time, String content);
+    public interface NewMailConsumer {
+        void accept(String sender, String subject, String mailId);
     }
 
-    private Consumer<String> onIncomingMessage;
-    private StructuredMessageConsumer onIncomingStructuredMessage;
+    public static class MailListResult {
+        public final List<Email> emails;
+        public final int total;
+        public final int unreadInbox;
+
+        public MailListResult(List<Email> emails, int total, int unreadInbox) {
+            this.emails = emails != null ? emails : new ArrayList<>();
+            this.total = total;
+            this.unreadInbox = unreadInbox;
+        }
+    }
+
+    private NewMailConsumer onNewMailNotification;
     private Consumer<String> onLogMessage;
-    
+
     private String serverHost;
     private int serverPort;
 
@@ -34,18 +54,14 @@ public class ClientService {
         this.network = new ClientNetwork(InetAddress.getByName(serverHost), serverPort);
     }
 
-    public void setOnIncomingMessage(Consumer<String> onIncomingMessage) {
-        this.onIncomingMessage = onIncomingMessage;
-    }
-
-    public void setOnIncomingStructuredMessage(StructuredMessageConsumer consumer) {
-        this.onIncomingStructuredMessage = consumer;
+    public void setOnNewMailNotification(NewMailConsumer onNewMailNotification) {
+        this.onNewMailNotification = onNewMailNotification;
     }
 
     public void setOnLogMessage(Consumer<String> onLogMessage) {
         this.onLogMessage = onLogMessage;
     }
-    
+
     private void log(String msg) {
         if (onLogMessage != null) {
             onLogMessage.accept(msg);
@@ -54,21 +70,16 @@ public class ClientService {
 
     private void handlePushMessage(String rawMessage) {
         Command cmd = ProtocolHelper.parseCommand(rawMessage);
-        
-        if (cmd == Command.INCOMING_MSG) {
-            // Split with limit=4 to preserve content that may itself contain '|' (e.g. [FILE]|name|size|type)
-            // Format: INCOMING_MSG|sender|time|content
-            String[] parts = rawMessage.split("\\|", 4);
-            if (parts.length >= 4) {
-                String sender = parts[1];
-                String time = parts[2];
-                String content = parts[3]; // full content preserved, including [FILE]|... payloads
-                String display = "[" + time + "] " + sender + ": " + content;
-                if (onIncomingMessage != null) {
-                    onIncomingMessage.accept(display);
-                }
-                if (onIncomingStructuredMessage != null) {
-                    onIncomingStructuredMessage.accept(sender, time, content);
+        if (cmd == Command.NEW_MAIL) {
+            // Định dạng: NEW_MAIL|sender|subject|mailId
+            String[] parts = ProtocolHelper.parseParams(rawMessage);
+            if (parts.length >= 3) {
+                String sender = parts[0];
+                String subject = parts[1];
+                String mailId = parts[2];
+                log("Nhận thông báo thư mới từ [" + sender + "]: '" + subject + "'");
+                if (onNewMailNotification != null) {
+                    onNewMailNotification.accept(sender, subject, mailId);
                 }
             }
         }
@@ -94,16 +105,16 @@ public class ClientService {
         try {
             listener = new ClientListener(this::handlePushMessage);
             int listenerPort = listener.getPort();
-            
+
             String request = ProtocolHelper.buildRequest(Command.LOGIN, username, password, String.valueOf(listenerPort));
             String response = network.sendRequest(request);
-            
+
             if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
                 currentUsername = username;
                 listenerThread = new Thread(listener);
                 listenerThread.setDaemon(true);
                 listenerThread.start();
-                log("Đăng nhập thành công! Chào mừng '" + username + "' (Cổng nhận: " + listenerPort + ")");
+                log("Đăng nhập thành công! Hộp thư của '" + username + "' đã sẵn sàng.");
             } else {
                 listener.stop();
                 log("Đăng nhập thất bại: " + response);
@@ -116,106 +127,12 @@ public class ClientService {
         }
     }
 
-    public String sendMessage(String content) {
-        if (!isLoggedIn()) return "ERROR|Chưa đăng nhập";
-        try {
-            String request = ProtocolHelper.buildRequest(Command.MESSAGE, content);
-            String response = network.sendRequest(request);
-            if (response.startsWith("RESPONSE|OK")) {
-                log("Đã gửi tin nhắn tới Server");
-            } else {
-                log("Gửi tin nhắn thất bại: " + response);
-            }
-            return response;
-        } catch (Exception e) {
-            log("Lỗi gửi tin nhắn: " + e.getMessage());
-            return "ERROR|Exception: " + e.getMessage();
-        }
-    }
-
-    public String uploadFile(File file) {
-        return uploadFile(file, null);
-    }
-
-    public String uploadFile(File file, Consumer<Double> onProgress) {
-        if (!isLoggedIn()) return "ERROR|Chưa đăng nhập";
-        try {
-            int totalChunks = (int) Math.ceil((double) file.length() / UDPConstants.CHUNK_DATA_SIZE);
-            if (totalChunks == 0) totalChunks = 1;
-            String request = ProtocolHelper.buildRequest(Command.UPLOAD, file.getName(), String.valueOf(totalChunks));
-            log("Yêu cầu tải lên file '" + file.getName() + "' (" + totalChunks + " phần, " + file.length() + " bytes)...");
-            String response = network.sendRequest(request);
-            
-            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
-                // Server trả về port riêng để nhận file chunks
-                String[] respParts = response.split("\\" + UDPConstants.DELIMITER);
-                int filePort = network.getServerPort(); // fallback
-                if (respParts.length >= 3) {
-                    try {
-                        filePort = Integer.parseInt(respParts[2]);
-                    } catch (NumberFormatException e) {
-                        // Fallback to server port nếu server cũ không trả filePort
-                    }
-                }
-                network.sendFileChunks(file, network.getServerAddress(), filePort, onProgress);
-                log("Tải lên file '" + file.getName() + "' thành công!");
-                return "OK|File uploaded";
-            } else {
-                log("Server từ chối tải lên: " + response);
-            }
-            return response;
-        } catch (Exception e) {
-            log("Lỗi tải lên file: " + e.getMessage());
-            return "ERROR|Exception: " + e.getMessage();
-        }
-    }
-
-    public String downloadFile(String filename, File saveLocation) {
-        return downloadFile(filename, saveLocation, null);
-    }
-
-    public String downloadFile(String filename, File saveLocation, Consumer<Double> onProgress) {
-        if (!isLoggedIn()) return "ERROR|Chưa đăng nhập";
-        try {
-            String request = ProtocolHelper.buildRequest(Command.DOWNLOAD, filename);
-            log("Yêu cầu tải xuống file '" + filename + "'...");
-            String response = network.sendRequest(request);
-            
-            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
-                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
-                int totalChunks = Integer.parseInt(parts[2]);
-                
-                // Server có thể trả về port riêng cho file transfer
-                int filePort = network.getServerPort(); // fallback
-                if (parts.length >= 4) {
-                    try {
-                        filePort = Integer.parseInt(parts[3]);
-                    } catch (NumberFormatException e) {
-                        // Fallback to server port nếu server cũ không trả filePort
-                    }
-                }
-                
-                File outputFile = new File(saveLocation, filename);
-                log("Bắt đầu nhận " + totalChunks + " phần dữ liệu...");
-                network.receiveFileChunks(totalChunks, outputFile, network.getServerAddress(), filePort, onProgress);
-                log("Tải file '" + filename + "' thành công! Lưu tại: " + outputFile.getAbsolutePath());
-                return "OK|File downloaded";
-            } else {
-                log("Tải xuống không thành công: " + response);
-            }
-            return response;
-        } catch (Exception e) {
-            log("Lỗi tải xuống file: " + e.getMessage());
-            return "ERROR|Exception: " + e.getMessage();
-        }
-    }
-
     public String logout() {
         if (!isLoggedIn()) return "OK|Đã đăng xuất trước đó";
         try {
             String request = ProtocolHelper.buildRequest(Command.LOGOUT);
             String response = network.sendRequest(request);
-            log("Đã đăng xuất khỏi Server thành công.");
+            log("Đã đăng xuất khỏi máy chủ thư.");
             return response;
         } catch (Exception e) {
             log("Lỗi đăng xuất: " + e.getMessage());
@@ -225,6 +142,238 @@ public class ClientService {
             if (listener != null) {
                 listener.stop();
             }
+        }
+    }
+
+    /**
+     * Gửi email mới qua UDP
+     */
+    public boolean sendMail(Email email) {
+        if (!isLoggedIn()) return false;
+        try {
+            email.setSender(currentUsername);
+            String request = ProtocolHelper.buildSendMailRequest(email);
+            log("Đang gửi thư: '" + email.getSubject() + "' tới " + email.getRecipientsDisplay() + "...");
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                log("Gửi thư thành công! (ID: " + email.getId() + ")");
+                return true;
+            } else {
+                log("Gửi thư thất bại: " + response);
+                return false;
+            }
+        } catch (Exception e) {
+            log("Lỗi gửi thư: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Lấy danh sách email theo thư mục kèm phân trang
+     */
+    public MailListResult listMails(MailFolder folder, int page, int pageSize) {
+        if (!isLoggedIn()) return new MailListResult(Collections.emptyList(), 0, 0);
+        try {
+            String request = ProtocolHelper.buildListMailRequest(folder, page, pageSize);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
+                if (parts.length >= 3) {
+                    String base64Json = parts[2];
+                    String json = JsonUtil.decodeBase64(base64Json);
+                    List<Email> list = JsonUtil.emailListFromJson(json);
+                    int total = parts.length >= 4 ? Integer.parseInt(parts[3]) : list.size();
+                    int unread = parts.length >= 5 ? Integer.parseInt(parts[4]) : 0;
+                    return new MailListResult(list, total, unread);
+                }
+            }
+        } catch (Exception e) {
+            log("Lỗi lấy danh sách thư (" + folder + "): " + e.getMessage());
+        }
+        return new MailListResult(Collections.emptyList(), 0, 0);
+    }
+
+    /**
+     * Đọc chi tiết một email theo ID
+     */
+    public Email readMail(String mailId) {
+        if (!isLoggedIn()) return null;
+        try {
+            String request = ProtocolHelper.buildReadMailRequest(mailId);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
+                if (parts.length >= 3) {
+                    String base64 = parts[2];
+                    String json = JsonUtil.decodeBase64(base64);
+                    return JsonUtil.fromJson(json, Email.class);
+                }
+            }
+        } catch (Exception e) {
+            log("Lỗi đọc thư: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Xóa email (vào Thùng rác hoặc xóa vĩnh viễn)
+     */
+    public boolean deleteMail(String mailId, boolean permanent) {
+        if (!isLoggedIn()) return false;
+        try {
+            String request = ProtocolHelper.buildDeleteMailRequest(mailId, permanent);
+            String response = network.sendRequest(request);
+            boolean ok = response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK");
+            if (ok) {
+                log(permanent ? "Đã xóa vĩnh viễn thư." : "Đã chuyển thư vào Thùng rác.");
+            }
+            return ok;
+        } catch (Exception e) {
+            log("Lỗi xóa thư: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đánh dấu hoặc bỏ gắn sao
+     */
+    public boolean toggleStar(String mailId, boolean starred) {
+        if (!isLoggedIn()) return false;
+        try {
+            String request = ProtocolHelper.buildStarMailRequest(mailId, starred);
+            String response = network.sendRequest(request);
+            return response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK");
+        } catch (Exception e) {
+            log("Lỗi cập nhật dấu sao: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đánh dấu đã đọc / chưa đọc
+     */
+    public boolean markRead(String mailId, boolean read) {
+        if (!isLoggedIn()) return false;
+        try {
+            String request = ProtocolHelper.buildMarkReadRequest(mailId, read);
+            String response = network.sendRequest(request);
+            return response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK");
+        } catch (Exception e) {
+            log("Lỗi đánh dấu trạng thái đọc: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Lưu bản nháp (Draft)
+     */
+    public boolean saveDraft(Email draft) {
+        if (!isLoggedIn()) return false;
+        try {
+            draft.setSender(currentUsername);
+            String request = ProtocolHelper.buildSaveDraftRequest(draft);
+            String response = network.sendRequest(request);
+            boolean ok = response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK");
+            if (ok) {
+                log("Đã lưu bản nháp.");
+            }
+            return ok;
+        } catch (Exception e) {
+            log("Lỗi lưu nháp: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Tìm kiếm thư điện tử theo từ khóa
+     */
+    public List<Email> searchMail(String keyword) {
+        if (!isLoggedIn() || keyword == null || keyword.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            String request = ProtocolHelper.buildSearchMailRequest(keyword);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
+                if (parts.length >= 3) {
+                    String base64 = parts[2];
+                    String json = JsonUtil.decodeBase64(base64);
+                    return JsonUtil.emailListFromJson(json);
+                }
+            }
+        } catch (Exception e) {
+            log("Lỗi tìm kiếm thư: " + e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Tải lên tệp đính kèm qua UDP socket riêng biệt
+     */
+    public boolean uploadAttachment(File file, Consumer<Double> onProgress) {
+        if (!isLoggedIn()) return false;
+        try {
+            int totalChunks = (int) Math.ceil((double) file.length() / UDPConstants.CHUNK_DATA_SIZE);
+            if (totalChunks == 0) totalChunks = 1;
+            String request = ProtocolHelper.buildRequest(Command.UPLOAD, file.getName(), String.valueOf(totalChunks));
+            log("Đang tải lên tệp đính kèm '" + file.getName() + "' (" + file.length() + " bytes)...");
+            String response = network.sendRequest(request);
+
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] respParts = response.split("\\" + UDPConstants.DELIMITER);
+                int filePort = network.getServerPort();
+                if (respParts.length >= 3) {
+                    try {
+                        filePort = Integer.parseInt(respParts[2]);
+                    } catch (NumberFormatException ignored) {}
+                }
+                network.sendFileChunks(file, network.getServerAddress(), filePort, onProgress);
+                log("Tải lên tệp đính kèm '" + file.getName() + "' hoàn tất!");
+                return true;
+            } else {
+                log("Máy chủ từ chối tải tệp đính kèm: " + response);
+            }
+            return false;
+        } catch (Exception e) {
+            log("Lỗi tải tệp đính kèm: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Tải xuống tệp đính kèm qua UDP socket riêng biệt
+     */
+    public boolean downloadAttachment(String filename, File saveLocation, Consumer<Double> onProgress) {
+        if (!isLoggedIn()) return false;
+        try {
+            String request = ProtocolHelper.buildRequest(Command.DOWNLOAD, filename);
+            log("Yêu cầu tải xuống tệp đính kèm '" + filename + "'...");
+            String response = network.sendRequest(request);
+
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER);
+                int totalChunks = Integer.parseInt(parts[2]);
+
+                int filePort = network.getServerPort();
+                if (parts.length >= 4) {
+                    try {
+                        filePort = Integer.parseInt(parts[3]);
+                    } catch (NumberFormatException ignored) {}
+                }
+
+                File outputFile = new File(saveLocation, filename);
+                log("Đang nhận " + totalChunks + " phần dữ liệu của tệp '" + filename + "'...");
+                network.receiveFileChunks(totalChunks, outputFile, network.getServerAddress(), filePort, onProgress);
+                log("Tải tệp đính kèm thành công! Lưu tại: " + outputFile.getAbsolutePath());
+                return true;
+            } else {
+                log("Tải tệp không thành công: " + response);
+            }
+            return false;
+        } catch (Exception e) {
+            log("Lỗi tải tệp đính kèm: " + e.getMessage());
+            return false;
         }
     }
 
