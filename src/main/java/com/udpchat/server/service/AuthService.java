@@ -45,7 +45,14 @@ public class AuthService {
             String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
             if (content.trim().equals("password=" + password)) {
                 String sessionKey = makeSessionKey(addr, reqPort);
-                ClientSession session = new ClientSession(username, addr, reqPort, listenerPort);
+                // Chuẩn hóa địa chỉ IP để đảm bảo push message đến đúng đích
+                InetAddress normalizedAddr;
+                try {
+                    normalizedAddr = InetAddress.getByName(normalizeAddress(addr));
+                } catch (Exception e) {
+                    normalizedAddr = addr;
+                }
+                ClientSession session = new ClientSession(username, normalizedAddr, reqPort, listenerPort);
                 onlineSessions.put(sessionKey, session);
                 return "Thành công: Đăng nhập thành công";
             } else {
@@ -91,6 +98,32 @@ public class AuthService {
     }
 
     public static String makeSessionKey(InetAddress addr, int port) {
-        return addr.getHostAddress() + ":" + port;
+        return normalizeAddress(addr) + ":" + port;
+    }
+
+    /**
+     * Chuẩn hóa địa chỉ IP: chuyển IPv6 loopback (::1) về IPv4 loopback (127.0.0.1)
+     * để tránh sessionKey không nhất quán khi client chạy trên cùng máy host.
+     */
+    private static String normalizeAddress(InetAddress addr) {
+        if (addr.isLoopbackAddress()) {
+            return "127.0.0.1";
+        }
+        // Xử lý IPv4-mapped IPv6 addresses (e.g., ::ffff:192.168.1.x)
+        if (addr instanceof java.net.Inet6Address) {
+            java.net.Inet6Address ipv6 = (java.net.Inet6Address) addr;
+            byte[] bytes = ipv6.getAddress();
+            // Check if it's an IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+            boolean isIPv4Mapped = true;
+            for (int i = 0; i < 10; i++) {
+                if (bytes[i] != 0) { isIPv4Mapped = false; break; }
+            }
+            if (isIPv4Mapped && bytes[10] == (byte) 0xff && bytes[11] == (byte) 0xff) {
+                return String.format("%d.%d.%d.%d",
+                        bytes[12] & 0xFF, bytes[13] & 0xFF,
+                        bytes[14] & 0xFF, bytes[15] & 0xFF);
+            }
+        }
+        return addr.getHostAddress();
     }
 }

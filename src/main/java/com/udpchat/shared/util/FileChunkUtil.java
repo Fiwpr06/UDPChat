@@ -25,6 +25,9 @@ public class FileChunkUtil {
     }
 
     public static void assembleFile(Map<Integer, byte[]> chunks, int totalChunks, File outputFile) throws IOException {
+        if (outputFile.getParentFile() != null) {
+            outputFile.getParentFile().mkdirs();
+        }
         try (FileOutputStream fos = new FileOutputStream(outputFile)) {
             for (int i = 0; i < totalChunks; i++) {
                 byte[] chunk = chunks.get(i);

@@ -1,6 +1,7 @@
 package com.udpchat.client.controller;
 
 import com.udpchat.client.service.ClientService;
+import com.udpchat.client.util.ImageHelper;
 import com.udpchat.shared.util.UDPUtil;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -11,11 +12,13 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
@@ -503,6 +506,15 @@ public class ClientController {
         Window window = messagesBox.getScene().getWindow();
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Chọn tệp hoặc hình ảnh để gửi qua UDP");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Tất cả tệp (*.*)", "*.*"),
+                new FileChooser.ExtensionFilter("Hình ảnh (*.png, *.jpg, *.ico, *.gif, *.bmp, *.webp, *.tif)",
+                        "*.png", "*.jpg", "*.jpeg", "*.jpe", "*.jfif", "*.ico", "*.cur", "*.gif", "*.bmp", "*.dib", "*.webp", "*.tif", "*.tiff"),
+                new FileChooser.ExtensionFilter("Tài liệu (*.pdf, *.doc, *.docx, *.txt, *.md)",
+                        "*.pdf", "*.doc", "*.docx", "*.txt", "*.md"),
+                new FileChooser.ExtensionFilter("Tệp nén (*.zip, *.rar, *.7z)",
+                        "*.zip", "*.rar", "*.7z", "*.tar", "*.gz")
+        );
         File file = fileChooser.showOpenDialog(window);
 
         if (file != null && file.exists()) {
@@ -598,27 +610,32 @@ public class ClientController {
 
         if ("IMAGE".equalsIgnoreCase(fileType)) {
             File existingImgFile = (localFile != null && localFile.exists()) ? localFile 
-                    : (cachedFile.exists() ? cachedFile : null);
+                    : (cachedFile.exists() && cachedFile.length() == fileSize ? cachedFile : null);
 
             if (existingImgFile != null) {
                 try {
-                    Image img = new Image(existingImgFile.toURI().toString(), 280, 0, true, true, true);
-                    inlineImageView.setImage(img);
-                    inlineImageView.setOnMouseClicked(e -> showImagePreviewDialog(filename, img));
-                    fileCard.getChildren().add(inlineImageView);
-                    addToImagesGallery(filename, img);
-                } catch (Exception ignored) {}
+                    Image img = ImageHelper.loadImage(existingImgFile);
+                    if (img != null && !img.isError()) {
+                        inlineImageView.setImage(img);
+                        final File srcFile = existingImgFile;
+                        inlineImageView.setOnMouseClicked(e -> showImagePreviewDialog(filename, img, srcFile));
+                        fileCard.getChildren().add(inlineImageView);
+                        addToImagesGallery(filename, img, srcFile);
+                    }
+                } catch (Exception e) {
+                    addLogMessage("Lỗi nạp ảnh xem trước: " + e.getMessage());
+                }
             }
         }
 
-        // Dòng tương tác: Nút tải về / Tiến trình / Trạng thái
-        HBox actionRow = new HBox(10);
+        // Dòng tương tác: Nút tải về / Tiến trình / Trạng thái / Xem trước ảnh
+        HBox actionRow = new HBox(8);
         actionRow.setAlignment(Pos.CENTER_LEFT);
 
         ProgressBar cardProgress = new ProgressBar(0);
         cardProgress.setVisible(false);
         cardProgress.setManaged(false);
-        cardProgress.setPrefWidth(120);
+        cardProgress.setPrefWidth(100);
 
         Label statusLbl = new Label("");
         statusLbl.getStyleClass().add("caption-muted");
@@ -681,14 +698,19 @@ public class ClientController {
 
                         if ("IMAGE".equalsIgnoreCase(fileType) && targetSavedFile.exists()) {
                             try {
-                                Image img = new Image(targetSavedFile.toURI().toString(), 280, 0, true, true, true);
-                                inlineImageView.setImage(img);
-                                inlineImageView.setOnMouseClicked(ev -> showImagePreviewDialog(filename, img));
-                                if (!fileCard.getChildren().contains(inlineImageView)) {
-                                    fileCard.getChildren().add(1, inlineImageView);
+                                Image img = ImageHelper.loadImage(targetSavedFile);
+                                if (img != null && !img.isError()) {
+                                    inlineImageView.setImage(img);
+                                    inlineImageView.setOnMouseClicked(ev -> showImagePreviewDialog(filename, img, targetSavedFile));
+                                    if (!fileCard.getChildren().contains(inlineImageView)) {
+                                        int insertIdx = Math.min(1, fileCard.getChildren().size());
+                                        fileCard.getChildren().add(insertIdx, inlineImageView);
+                                    }
+                                    addToImagesGallery(filename, img, targetSavedFile);
                                 }
-                                addToImagesGallery(filename, img);
-                            } catch (Exception ignored) {}
+                            } catch (Exception ex) {
+                                addLogMessage("Lỗi load ảnh tải về: " + ex.getMessage());
+                            }
                         }
                     });
                 }).start();
@@ -696,6 +718,50 @@ public class ClientController {
         });
 
         actionRow.getChildren().addAll(actionBtn, cardProgress, statusLbl);
+
+        // Nút Xem trước riêng cho hình ảnh
+        if ("IMAGE".equalsIgnoreCase(fileType)) {
+            Button previewBtn = new Button("👁 Xem ảnh");
+            previewBtn.getStyleClass().add("button-secondary");
+            previewBtn.setOnAction(e -> {
+                File targetImg = (localFile != null && localFile.exists()) ? localFile
+                        : (cachedFile.exists() && cachedFile.length() == fileSize ? cachedFile : null);
+                if (targetImg != null) {
+                    Image img = ImageHelper.loadImage(targetImg);
+                    if (img != null) {
+                        showImagePreviewDialog(filename, img, targetImg);
+                    }
+                } else {
+                    actionBtn.setDisable(true);
+                    previewBtn.setDisable(true);
+                    statusLbl.setText("Đang tải ảnh...");
+                    new Thread(() -> {
+                        cacheDir.mkdirs();
+                        service.downloadFile(filename, cacheDir, null);
+                        Platform.runLater(() -> {
+                            actionBtn.setDisable(false);
+                            previewBtn.setDisable(false);
+                            statusLbl.setText("");
+                            if (cachedFile.exists() && cachedFile.length() == fileSize) {
+                                Image img = ImageHelper.loadImage(cachedFile);
+                                if (img != null && !img.isError()) {
+                                    inlineImageView.setImage(img);
+                                    inlineImageView.setOnMouseClicked(ev -> showImagePreviewDialog(filename, img, cachedFile));
+                                    if (!fileCard.getChildren().contains(inlineImageView)) {
+                                        int insertIdx = Math.min(1, fileCard.getChildren().size());
+                                        fileCard.getChildren().add(insertIdx, inlineImageView);
+                                    }
+                                    addToImagesGallery(filename, img, cachedFile);
+                                    showImagePreviewDialog(filename, img, cachedFile);
+                                }
+                            }
+                        });
+                    }).start();
+                }
+            });
+            actionRow.getChildren().add(previewBtn);
+        }
+
         fileCard.getChildren().add(actionRow);
 
         // Tự động tải trước hình ảnh vào cache để xem preview inline (Zalo style)
@@ -703,17 +769,22 @@ public class ClientController {
             new Thread(() -> {
                 cacheDir.mkdirs();
                 service.downloadFile(filename, cacheDir, null);
-                if (cachedFile.exists()) {
+                if (cachedFile.exists() && cachedFile.length() == fileSize) {
                     Platform.runLater(() -> {
                         try {
-                            Image img = new Image(cachedFile.toURI().toString(), 280, 0, true, true, true);
-                            inlineImageView.setImage(img);
-                            inlineImageView.setOnMouseClicked(ev -> showImagePreviewDialog(filename, img));
-                            if (!fileCard.getChildren().contains(inlineImageView)) {
-                                fileCard.getChildren().add(1, inlineImageView);
+                            Image img = ImageHelper.loadImage(cachedFile);
+                            if (img != null && !img.isError()) {
+                                inlineImageView.setImage(img);
+                                inlineImageView.setOnMouseClicked(ev -> showImagePreviewDialog(filename, img, cachedFile));
+                                if (!fileCard.getChildren().contains(inlineImageView)) {
+                                    int insertIdx = Math.min(1, fileCard.getChildren().size());
+                                    fileCard.getChildren().add(insertIdx, inlineImageView);
+                                }
+                                addToImagesGallery(filename, img, cachedFile);
                             }
-                            addToImagesGallery(filename, img);
-                        } catch (Exception ignored) {}
+                        } catch (Exception e) {
+                            addLogMessage("Lỗi load ảnh cache: " + e.getMessage());
+                        }
                     });
                 }
             }).start();
@@ -723,8 +794,10 @@ public class ClientController {
         row.getChildren().add(bubble);
         messagesBox.getChildren().add(row);
 
-        // Thêm vào danh sách tệp của Quản lý Kênh
-        addToFileListPane(filename, fileSize, fileType);
+        // Thêm vào danh sách tệp của Quản lý Kênh (tách biệt tài liệu và hình ảnh)
+        if (!"IMAGE".equalsIgnoreCase(fileType)) {
+            addToFileListPane(filename, fileSize, fileType);
+        }
     }
 
     // ==========================================
@@ -743,7 +816,7 @@ public class ClientController {
         channelMediaPanel.setManaged(false);
     }
 
-    private void addToImagesGallery(String filename, Image img) {
+    private void addToImagesGallery(String filename, Image img, File sourceFile) {
         if (galleryImages.contains(filename)) return;
         galleryImages.add(filename);
 
@@ -763,7 +836,7 @@ public class ClientController {
             thumbCard.getChildren().add(thumbView);
 
             Tooltip.install(thumbCard, new Tooltip(filename));
-            thumbCard.setOnMouseClicked(e -> showImagePreviewDialog(filename, img));
+            thumbCard.setOnMouseClicked(e -> showImagePreviewDialog(filename, img, sourceFile));
 
             imagesGalleryPane.getChildren().add(thumbCard);
         });
@@ -823,36 +896,193 @@ public class ClientController {
     }
 
     /**
-     * Mở cửa sổ xem trước ảnh kích thước lớn
+     * Mở cửa sổ xem trước ảnh tương tác cao (Zalo/Telegram-style LightBox Modal)
      */
-    private void showImagePreviewDialog(String filename, Image img) {
+    private void showImagePreviewDialog(String filename, Image img, File sourceFile) {
         if (img == null) return;
         Platform.runLater(() -> {
             try {
                 Stage stage = new Stage();
                 stage.setTitle("Xem trước ảnh: " + filename);
+                if (messagesBox.getScene() != null && messagesBox.getScene().getWindow() != null) {
+                    stage.initOwner(messagesBox.getScene().getWindow());
+                }
                 stage.initModality(Modality.NONE);
 
-                ImageView fullImageView = new ImageView(img);
-                fullImageView.setPreserveRatio(true);
-                fullImageView.setSmooth(true);
+                BorderPane root = new BorderPane();
+                root.setStyle("-fx-background-color: #070A10;");
 
-                double imgWidth = img.getWidth() > 0 ? img.getWidth() : 600;
-                double imgHeight = img.getHeight() > 0 ? img.getHeight() : 400;
-                double targetWidth = Math.min(imgWidth, 800);
-                double targetHeight = Math.min(imgHeight, 600);
-                if (targetWidth < 300) targetWidth = 300;
-                if (targetHeight < 200) targetHeight = 200;
+                // --- TOP BAR: THÔNG TIN ẢNH & CÁC NÚT ĐIỀU KHIỂN ---
+                HBox topBar = new HBox(12);
+                topBar.setAlignment(Pos.CENTER_LEFT);
+                topBar.setStyle("-fx-background-color: #0D131F; -fx-padding: 10px 16px; -fx-border-color: #1E293B; -fx-border-width: 0 0 1px 0;");
 
-                fullImageView.setFitWidth(targetWidth);
-                fullImageView.setFitHeight(targetHeight);
+                Label formatBadge = new Label(ImageHelper.getImageFormatName(filename));
+                formatBadge.getStyleClass().add("file-type-badge");
 
-                ScrollPane scrollPane = new ScrollPane(new StackPane(fullImageView));
-                scrollPane.setStyle("-fx-background-color: #0B0F19; -fx-padding: 10px;");
+                VBox titleBox = new VBox(2);
+                Label nameLbl = new Label(filename);
+                nameLbl.setStyle("-fx-font-family: 'Segoe UI', Arial; -fx-font-weight: bold; -fx-text-fill: #F8FAFC; -fx-font-size: 13px;");
+
+                String dims = (int) img.getWidth() + " × " + (int) img.getHeight() + " px";
+                String sizeStr = sourceFile != null && sourceFile.exists() ? " • " + formatFileSize(sourceFile.length()) : "";
+                Label infoLbl = new Label(dims + sizeStr);
+                infoLbl.setStyle("-fx-font-family: 'Segoe UI', Arial; -fx-text-fill: #94A3B8; -fx-font-size: 11px;");
+                titleBox.getChildren().addAll(nameLbl, infoLbl);
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                // Các nút công cụ Zoom
+                HBox tools = new HBox(8);
+                tools.setAlignment(Pos.CENTER_RIGHT);
+
+                Button btnZoomOut = new Button("−");
+                btnZoomOut.getStyleClass().add("button-secondary");
+                btnZoomOut.setStyle("-fx-font-size: 13px; -fx-padding: 3px 10px;");
+
+                Label zoomLbl = new Label("100%");
+                zoomLbl.setStyle("-fx-font-family: 'Consolas', monospace; -fx-text-fill: #F59E0B; -fx-font-weight: bold; -fx-min-width: 48px; -fx-alignment: center;");
+
+                Button btnZoomIn = new Button("+");
+                btnZoomIn.getStyleClass().add("button-secondary");
+                btnZoomIn.setStyle("-fx-font-size: 13px; -fx-padding: 3px 10px;");
+
+                Button btnActualSize = new Button("1:1 Gốc");
+                btnActualSize.getStyleClass().add("button-secondary");
+                btnActualSize.setStyle("-fx-font-size: 11px; -fx-padding: 4px 8px;");
+
+                Button btnFit = new Button("Vừa khung");
+                btnFit.getStyleClass().add("button-secondary");
+                btnFit.setStyle("-fx-font-size: 11px; -fx-padding: 4px 8px;");
+
+                tools.getChildren().addAll(btnZoomOut, zoomLbl, btnZoomIn, btnActualSize, btnFit);
+
+                if (sourceFile != null && sourceFile.exists()) {
+                    Button btnOpenSys = new Button("Mở ngoài ↗");
+                    btnOpenSys.getStyleClass().add("button-secondary");
+                    btnOpenSys.setStyle("-fx-font-size: 11px; -fx-padding: 4px 8px;");
+                    btnOpenSys.setOnAction(ev -> {
+                        try {
+                            Desktop.getDesktop().open(sourceFile);
+                        } catch (Exception ex) {
+                            addLogMessage("Không thể mở bằng ứng dụng hệ thống: " + ex.getMessage());
+                        }
+                    });
+                    tools.getChildren().add(btnOpenSys);
+                }
+
+                Button btnSaveAs = new Button("Lưu ảnh...");
+                btnSaveAs.getStyleClass().add("button-secondary");
+                btnSaveAs.setStyle("-fx-font-size: 11px; -fx-padding: 4px 8px;");
+                btnSaveAs.setOnAction(ev -> {
+                    FileChooser saveChooser = new FileChooser();
+                    saveChooser.setTitle("Lưu ảnh về máy");
+                    saveChooser.setInitialFileName(filename);
+                    File dest = saveChooser.showSaveDialog(stage);
+                    if (dest != null) {
+                        new Thread(() -> {
+                            try {
+                                if (sourceFile != null && sourceFile.exists()) {
+                                    Files.copy(sourceFile.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                                    addLogMessage("Đã lưu ảnh thành công: " + dest.getAbsolutePath());
+                                } else {
+                                    service.downloadFile(filename, dest.getParentFile(), null);
+                                    addLogMessage("Đã tải và lưu ảnh: " + dest.getAbsolutePath());
+                                }
+                            } catch (Exception ex) {
+                                addLogMessage("Lỗi lưu ảnh: " + ex.getMessage());
+                            }
+                        }).start();
+                    }
+                });
+                tools.getChildren().add(btnSaveAs);
+
+                Button btnClose = new Button("✕");
+                btnClose.getStyleClass().add("button-secondary");
+                btnClose.setStyle("-fx-font-size: 12px; -fx-padding: 4px 10px;");
+                btnClose.setOnAction(ev -> stage.close());
+
+                topBar.getChildren().addAll(formatBadge, titleBox, spacer, tools, btnClose);
+                root.setTop(topBar);
+
+                // --- CENTER: KHUNG HIỂN THỊ ẢNH VÀ THU PHÓNG ---
+                ImageView previewView = new ImageView(img);
+                previewView.setPreserveRatio(true);
+                previewView.setSmooth(true);
+
+                StackPane imageContainer = new StackPane(previewView);
+                imageContainer.setStyle("-fx-background-color: #070A10; -fx-padding: 20px;");
+                imageContainer.setAlignment(Pos.CENTER);
+
+                ScrollPane scrollPane = new ScrollPane(imageContainer);
+                scrollPane.setStyle("-fx-background-color: #070A10; -fx-background: #070A10; -fx-border-color: transparent;");
                 scrollPane.setFitToWidth(true);
                 scrollPane.setFitToHeight(true);
 
-                Scene scene = new Scene(scrollPane, targetWidth + 40, targetHeight + 40);
+                double naturalW = img.getWidth() > 0 ? img.getWidth() : 400;
+                double naturalH = img.getHeight() > 0 ? img.getHeight() : 300;
+                double initFitW = Math.min(naturalW, 850);
+                double initFitH = Math.min(naturalH, 600);
+                if (initFitW < 320) initFitW = 320;
+                if (initFitH < 220) initFitH = 220;
+
+                final double[] scale = { 1.0 };
+
+                Runnable applyZoom = () -> {
+                    previewView.setFitWidth(naturalW * scale[0]);
+                    previewView.setFitHeight(naturalH * scale[0]);
+                    zoomLbl.setText(String.format("%d%%", (int)(scale[0] * 100)));
+                };
+
+                double initialScale = Math.min(initFitW / naturalW, initFitH / naturalH);
+                if (initialScale > 1.0) initialScale = 1.0;
+                scale[0] = initialScale;
+                applyZoom.run();
+
+                btnZoomIn.setOnAction(ev -> {
+                    scale[0] = Math.min(scale[0] * 1.25, 5.0);
+                    applyZoom.run();
+                });
+
+                btnZoomOut.setOnAction(ev -> {
+                    scale[0] = Math.max(scale[0] / 1.25, 0.1);
+                    applyZoom.run();
+                });
+
+                btnActualSize.setOnAction(ev -> {
+                    scale[0] = 1.0;
+                    applyZoom.run();
+                });
+
+                btnFit.setOnAction(ev -> {
+                    double wAvail = scrollPane.getViewportBounds().getWidth() - 40;
+                    double hAvail = scrollPane.getViewportBounds().getHeight() - 40;
+                    if (wAvail > 50 && hAvail > 50) {
+                        scale[0] = Math.min(wAvail / naturalW, hAvail / naturalH);
+                        applyZoom.run();
+                    }
+                });
+
+                scrollPane.setOnScroll(ev -> {
+                    ev.consume();
+                    if (ev.getDeltaY() > 0) {
+                        scale[0] = Math.min(scale[0] * 1.15, 5.0);
+                    } else if (ev.getDeltaY() < 0) {
+                        scale[0] = Math.max(scale[0] / 1.15, 0.1);
+                    }
+                    applyZoom.run();
+                });
+
+                root.setCenter(scrollPane);
+
+                Scene scene = new Scene(root, Math.max(initFitW + 80, 720), Math.max(initFitH + 110, 520));
+                scene.setOnKeyPressed(ke -> {
+                    if (ke.getCode() == KeyCode.ESCAPE) {
+                        stage.close();
+                    }
+                });
+
                 stage.setScene(scene);
                 stage.show();
             } catch (Exception e) {
@@ -878,11 +1108,11 @@ public class ClientController {
     }
 
     private String determineFileType(String filename) {
-        String lower = filename.toLowerCase();
-        if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") 
-                || lower.endsWith(".gif") || lower.endsWith(".bmp") || lower.endsWith(".webp")) {
+        if (ImageHelper.isImageExtension(filename)) {
             return "IMAGE";
-        } else if (lower.endsWith(".pdf")) {
+        }
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".pdf")) {
             return "PDF";
         } else if (lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".txt") || lower.endsWith(".md")) {
             return "DOC";

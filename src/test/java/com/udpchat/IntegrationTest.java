@@ -140,6 +140,25 @@ public class IntegrationTest {
 
     @Test
     @Order(4)
+    public void testFileMessagePreservesDelimiters() throws Exception {
+        CountDownLatch fileMsgLatch = new CountDownLatch(1);
+        AtomicReference<String> bobContent = new AtomicReference<>();
+        
+        clientBob.setOnIncomingStructuredMessage((sender, time, content) -> {
+            bobContent.set(content);
+            fileMsgLatch.countDown();
+        });
+
+        String filePayload = "[FILE]|landscape.png|1048576|IMAGE";
+        clientAlice.sendMessage(filePayload);
+
+        boolean received = fileMsgLatch.await(3, TimeUnit.SECONDS);
+        assertTrue(received, "Bob should receive file message");
+        assertEquals(filePayload, bobContent.get(), "File payload must not be truncated");
+    }
+
+    @Test
+    @Order(5)
     public void testFileUploadAndDownload() throws Exception {
         // Create a test file
         File tempDir = new File("target/test-files");
@@ -185,7 +204,7 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     public void testLogout() {
         String logoutAlice = clientAlice.logout();
         assertTrue(logoutAlice.contains("OK"), "Alice logout should succeed");

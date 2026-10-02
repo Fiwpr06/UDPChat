@@ -6,6 +6,7 @@ import com.udpchat.server.service.FileService;
 import com.udpchat.server.service.MessageService;
 import com.udpchat.shared.protocol.Command;
 import com.udpchat.shared.protocol.ProtocolHelper;
+import com.udpchat.shared.protocol.UDPConstants;
 import com.udpchat.shared.util.UDPUtil;
 
 import java.net.DatagramSocket;
@@ -58,7 +59,11 @@ public class RequestHandler {
                 case MESSAGE:
                     if (authService.isLoggedIn(sessionKey)) {
                         String username = authService.getUsername(sessionKey);
-                        String content = params[0];
+                        String content = "";
+                        int delimIdx = rawMessage.indexOf(UDPConstants.DELIMITER);
+                        if (delimIdx != -1 && delimIdx < rawMessage.length() - 1) {
+                            content = rawMessage.substring(delimIdx + 1);
+                        }
                         messageService.saveMessage(senderAddr.getHostAddress(), username, content);
                         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
                         String pushMsg = ProtocolHelper.buildPush(Command.INCOMING_MSG, username, timestamp, content);
@@ -81,9 +86,28 @@ public class RequestHandler {
                         int totalChunks = Integer.parseInt(params[1]);
                         String username = authService.getUsername(sessionKey);
                         logger.accept("Bắt đầu nhận file '" + filename + "' (" + totalChunks + " phần) từ " + username);
-                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", "Ready"), senderAddr, senderPort);
-                        fileService.receiveFile(filename, totalChunks, serverSocket, senderAddr, senderPort);
-                        logger.accept("Đã nhận file '" + filename + "' thành công từ " + username);
+                        // Gửi OK qua server socket, nhưng nhận file qua socket riêng
+                        // để không block luồng chính của server
+                        try {
+                            DatagramSocket fileSocket = new DatagramSocket();
+                            int fileSocketPort = fileSocket.getLocalPort();
+                            // Thông báo cho client biết port riêng để gửi chunks
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", String.valueOf(fileSocketPort)), senderAddr, senderPort);
+                            // Xử lý nhận file trên thread riêng
+                            new Thread(() -> {
+                                try {
+                                    fileService.receiveFile(filename, totalChunks, fileSocket, senderAddr, senderPort);
+                                    logger.accept("Đã nhận file '" + filename + "' thành công từ " + username);
+                                } catch (Exception e) {
+                                    logger.accept("Lỗi nhận file '" + filename + "' từ " + username + ": " + e.getMessage());
+                                } finally {
+                                    fileSocket.close();
+                                }
+                            }, "FileReceive-" + filename).start();
+                        } catch (Exception e) {
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Lỗi server: " + e.getMessage()), senderAddr, senderPort);
+                            logger.accept("Lỗi tạo socket nhận file: " + e.getMessage());
+                        }
                     } else {
                         UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
                     }
@@ -95,9 +119,26 @@ public class RequestHandler {
                         if (fileService.fileExists(dlFile)) {
                             int totalChunks = fileService.getTotalChunks(dlFile);
                             logger.accept("Gửi file download '" + dlFile + "' (" + totalChunks + " phần) cho " + username);
-                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", String.valueOf(totalChunks)), senderAddr, senderPort);
-                            fileService.sendFile(dlFile, serverSocket, senderAddr, senderPort);
-                            logger.accept("Đã gửi xong file '" + dlFile + "' cho " + username);
+                            // Tạo socket riêng cho download để không block luồng chính
+                            try {
+                                DatagramSocket fileSocket = new DatagramSocket();
+                                int fileSocketPort = fileSocket.getLocalPort();
+                                UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", String.valueOf(totalChunks), String.valueOf(fileSocketPort)), senderAddr, senderPort);
+                                // Xử lý gửi file trên thread riêng
+                                new Thread(() -> {
+                                    try {
+                                        fileService.sendFile(dlFile, fileSocket, senderAddr, senderPort);
+                                        logger.accept("Đã gửi xong file '" + dlFile + "' cho " + username);
+                                    } catch (Exception e) {
+                                        logger.accept("Lỗi gửi file '" + dlFile + "' cho " + username + ": " + e.getMessage());
+                                    } finally {
+                                        fileSocket.close();
+                                    }
+                                }, "FileSend-" + dlFile).start();
+                            } catch (Exception e) {
+                                UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Lỗi server: " + e.getMessage()), senderAddr, senderPort);
+                                logger.accept("Lỗi tạo socket gửi file: " + e.getMessage());
+                            }
                         } else {
                             UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Không tìm thấy file"), senderAddr, senderPort);
                             logger.accept("Tải file thất bại: Không tìm thấy file '" + dlFile + "' trên server");
@@ -120,3 +161,4 @@ public class RequestHandler {
         }
     }
 }
+

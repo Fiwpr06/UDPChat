@@ -54,13 +54,15 @@ public class ClientService {
 
     private void handlePushMessage(String rawMessage) {
         Command cmd = ProtocolHelper.parseCommand(rawMessage);
-        String[] params = ProtocolHelper.parseParams(rawMessage);
         
         if (cmd == Command.INCOMING_MSG) {
-            if (params.length >= 3) {
-                String sender = params[0];
-                String time = params[1];
-                String content = params[2];
+            // Split with limit=4 to preserve content that may itself contain '|' (e.g. [FILE]|name|size|type)
+            // Format: INCOMING_MSG|sender|time|content
+            String[] parts = rawMessage.split("\\|", 4);
+            if (parts.length >= 4) {
+                String sender = parts[1];
+                String time = parts[2];
+                String content = parts[3]; // full content preserved, including [FILE]|... payloads
                 String display = "[" + time + "] " + sender + ": " + content;
                 if (onIncomingMessage != null) {
                     onIncomingMessage.accept(display);
@@ -145,7 +147,17 @@ public class ClientService {
             String response = network.sendRequest(request);
             
             if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
-                network.sendFileChunks(file, network.getServerAddress(), network.getServerPort(), onProgress);
+                // Server trả về port riêng để nhận file chunks
+                String[] respParts = response.split("\\" + UDPConstants.DELIMITER);
+                int filePort = network.getServerPort(); // fallback
+                if (respParts.length >= 3) {
+                    try {
+                        filePort = Integer.parseInt(respParts[2]);
+                    } catch (NumberFormatException e) {
+                        // Fallback to server port nếu server cũ không trả filePort
+                    }
+                }
+                network.sendFileChunks(file, network.getServerAddress(), filePort, onProgress);
                 log("Tải lên file '" + file.getName() + "' thành công!");
                 return "OK|File uploaded";
             } else {
@@ -173,9 +185,19 @@ public class ClientService {
                 String[] parts = response.split("\\" + UDPConstants.DELIMITER);
                 int totalChunks = Integer.parseInt(parts[2]);
                 
+                // Server có thể trả về port riêng cho file transfer
+                int filePort = network.getServerPort(); // fallback
+                if (parts.length >= 4) {
+                    try {
+                        filePort = Integer.parseInt(parts[3]);
+                    } catch (NumberFormatException e) {
+                        // Fallback to server port nếu server cũ không trả filePort
+                    }
+                }
+                
                 File outputFile = new File(saveLocation, filename);
                 log("Bắt đầu nhận " + totalChunks + " phần dữ liệu...");
-                network.receiveFileChunks(totalChunks, outputFile, onProgress);
+                network.receiveFileChunks(totalChunks, outputFile, network.getServerAddress(), filePort, onProgress);
                 log("Tải file '" + filename + "' thành công! Lưu tại: " + outputFile.getAbsolutePath());
                 return "OK|File downloaded";
             } else {

@@ -75,18 +75,20 @@ public class ClientNetwork {
     }
 
     public synchronized void receiveFileChunks(int totalChunks, File outputFile) throws Exception {
-        receiveFileChunks(totalChunks, outputFile, null);
+        receiveFileChunks(totalChunks, outputFile, serverAddress, serverPort, null);
     }
 
     public synchronized void receiveFileChunks(int totalChunks, File outputFile, java.util.function.Consumer<Double> onProgress) throws Exception {
+        receiveFileChunks(totalChunks, outputFile, serverAddress, serverPort, onProgress);
+    }
+
+    public synchronized void receiveFileChunks(int totalChunks, File outputFile, InetAddress fileServerAddr, int fileServerPort, java.util.function.Consumer<Double> onProgress) throws Exception {
         Map<Integer, byte[]> chunksMap = new HashMap<>();
         socket.setSoTimeout(5000);
         
         while (chunksMap.size() < totalChunks) {
             String[] response = UDPUtil.receiveString(socket);
             String message = response[0];
-            InetAddress senderIp = InetAddress.getByName(response[1]);
-            int senderPort = Integer.parseInt(response[2]);
 
             if (message.startsWith(Command.CHUNK.name())) {
                 String[] parts = message.split("\\" + UDPConstants.DELIMITER);
@@ -98,8 +100,9 @@ public class ClientNetwork {
                     onProgress.accept((double) chunksMap.size() / totalChunks);
                 }
                 
+                // Gửi ACK đến port riêng của server (nơi server đang nhận ACK)
                 String ack = Command.ACK.name() + UDPConstants.DELIMITER + index;
-                UDPUtil.sendString(socket, ack, senderIp, senderPort);
+                UDPUtil.sendString(socket, ack, fileServerAddr, fileServerPort);
             } else if (message.equals(Command.TRANSFER_DONE.name())) {
                 break;
             }
