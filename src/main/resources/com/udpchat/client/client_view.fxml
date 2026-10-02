@@ -289,41 +289,23 @@
                         <VBox spacing="18">
                             <padding><Insets top="20" right="24" bottom="24" left="24"/></padding>
 
-                            <!-- Subject Title -->
-                            <Label fx:id="detailSubjectLabel" text="Tiêu đề thư" styleClass="mail-detail-subject" wrapText="true"/>
-
-                            <!-- Sender / Recipient Information -->
-                            <HBox alignment="CENTER_LEFT" spacing="12" styleClass="info-banner">
-                                <padding><Insets top="12" right="14" bottom="12" left="14"/></padding>
-                                <StackPane styleClass="avatar-circle">
-                                    <Label fx:id="detailAvatarLabel" text="?" styleClass="avatar-text"/>
-                                </StackPane>
-                                <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                    <Label fx:id="detailSenderLabel" text="Người gửi" styleClass="user-name-label"/>
-                                    <Label fx:id="detailRecipientsLabel" text="Đến: tôi" styleClass="caption-muted" wrapText="true"/>
-                                    <Label fx:id="detailCcLabel" text="" styleClass="caption-muted" wrapText="true" visible="false" managed="false"/>
-                                </VBox>
+                            <!-- Subject Title & Thread Badge -->
+                            <HBox alignment="CENTER_LEFT" spacing="12">
+                                <Label fx:id="detailSubjectLabel" text="Tiêu đề thư" styleClass="mail-detail-subject" wrapText="true" HBox.hgrow="ALWAYS"/>
+                                <Label fx:id="detailThreadCountBadge" text="" styleClass="thread-badge-count" visible="false" managed="false"/>
                             </HBox>
 
-                            <Separator styleClass="panel-separator"/>
-
-                            <!-- Email Body Text -->
-                            <VBox styleClass="mail-detail-body-container" minHeight="160">
-                                <Label fx:id="detailBodyLabel" text="" wrapText="true" styleClass="mail-detail-body-text"/>
-                            </VBox>
-
-                            <!-- Attachments Section (if any) -->
-                            <VBox fx:id="attachmentsSection" spacing="10" visible="false" managed="false">
-                                <Separator styleClass="panel-separator"/>
-                                <Label fx:id="attachmentsHeaderLabel" text="Tệp đính kèm (0):" styleClass="card-title"/>
-                                <FlowPane fx:id="attachmentsFlowPane" hgap="12" vgap="12"/>
+                            <!-- Conversation Thread Messages Container (Stacked cards) -->
+                            <VBox fx:id="threadMessagesContainer" spacing="14">
+                                <!-- Cards populated dynamically in ClientController -->
                             </VBox>
 
                             <Separator styleClass="panel-separator"/>
 
-                            <!-- Quick Action Buttons at the bottom of the email -->
+                            <!-- Quick Action Buttons at the bottom of the email thread -->
                             <HBox spacing="10">
                                 <Button text="← Trả lời" onAction="#onReplyMail" styleClass="button-secondary"/>
+                                <Button text="Trả lời tất cả" onAction="#onReplyAllMail" styleClass="button-secondary"/>
                                 <Button text="→ Chuyển tiếp" onAction="#onForwardMail" styleClass="button-secondary"/>
                             </HBox>
                         </VBox>
