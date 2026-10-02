@@ -88,15 +88,8 @@ public class ClientController {
     @FXML private Label detailTimeLabel;
 
     @FXML private Label detailSubjectLabel;
-    @FXML private Label detailAvatarLabel;
-    @FXML private Label detailSenderLabel;
-    @FXML private Label detailRecipientsLabel;
-    @FXML private Label detailCcLabel;
-    @FXML private Label detailBodyLabel;
-
-    @FXML private VBox attachmentsSection;
-    @FXML private Label attachmentsHeaderLabel;
-    @FXML private FlowPane attachmentsFlowPane;
+    @FXML private Label detailThreadCountBadge;
+    @FXML private VBox threadMessagesContainer;
 
     // BOTTOM: UDP LOGS
     @FXML private VBox logDrawer;
@@ -460,8 +453,21 @@ public class ClientController {
         });
         row.getChildren().add(starBtn);
 
-        // 3. Sender or Recipient display (Fixed width ~140px)
-        String displayName = currentFolder == MailFolder.SENT ? "Tới: " + mail.getRecipientsDisplay() : mail.getSender();
+        // 3. Sender or Recipient display (Fixed width ~150px)
+        String displayName;
+        if (currentFolder == MailFolder.SENT) {
+            displayName = "Tới: " + mail.getRecipientsDisplay();
+        } else {
+            if (mail.getThreadParticipants() != null && !mail.getThreadParticipants().isEmpty()) {
+                displayName = String.join(", ", mail.getThreadParticipants());
+            } else {
+                displayName = mail.getSender();
+            }
+        }
+        if (mail.getThreadMessageCount() > 1) {
+            displayName += " (" + mail.getThreadMessageCount() + ")";
+        }
+
         Label senderLabel = new Label(displayName);
         senderLabel.getStyleClass().add("mail-row-sender");
         if (!mail.isRead()) {
@@ -511,60 +517,137 @@ public class ClientController {
     private void openMailDetail(Email mail) {
         currentSelectedMail = mail;
 
-        // Fetch full mail detail from server
+        // Fetch conversation thread messages from server
         new Thread(() -> {
-            Email full = service.readMail(mail.getId());
+            List<Email> threadMessages = service.getThreadMessages(mail.getThreadId());
             Platform.runLater(() -> {
-                Email target = full != null ? full : mail;
-                target.setRead(true);
-                displayMailDetail(target);
+                if (threadMessages != null && !threadMessages.isEmpty()) {
+                    displayThreadDetail(threadMessages);
+                } else {
+                    Email full = service.readMail(mail.getId());
+                    Email target = full != null ? full : mail;
+                    displayThreadDetail(List.of(target));
+                }
                 showMailDetailView();
             });
         }).start();
     }
 
     // =========================================================================
-    // DETAIL VIEW CONTENT DISPLAY
+    // CONVERSATION THREAD DETAIL VIEW (GMAIL STYLE)
     // =========================================================================
-    private void displayMailDetail(Email mail) {
-        currentSelectedMail = mail;
+    private void displayThreadDetail(List<Email> threadMessages) {
+        if (threadMessages == null || threadMessages.isEmpty()) return;
 
-        detailSubjectLabel.setText(mail.getSubject());
-        detailSenderLabel.setText(mail.getSender() + " <" + mail.getSender() + "@udpmail>");
-        detailTimeLabel.setText(mail.getSentAt());
-        detailRecipientsLabel.setText("Đến: " + mail.getRecipientsDisplay());
+        // The latest message in the thread
+        currentSelectedMail = threadMessages.get(threadMessages.size() - 1);
 
-        String initial = mail.getSender() != null && !mail.getSender().isEmpty()
-                ? mail.getSender().substring(0, 1).toUpperCase() : "?";
-        detailAvatarLabel.setText(initial);
+        String normalizedSubject = Email.normalizeSubject(currentSelectedMail.getSubject());
+        detailSubjectLabel.setText(normalizedSubject);
 
-        if (mail.getCc() != null && !mail.getCc().isEmpty()) {
-            detailCcLabel.setText("CC: " + mail.getCcDisplay());
-            detailCcLabel.setVisible(true);
-            detailCcLabel.setManaged(true);
+        if (threadMessages.size() > 1) {
+            detailThreadCountBadge.setText(threadMessages.size() + " tin nhắn");
+            detailThreadCountBadge.setVisible(true);
+            detailThreadCountBadge.setManaged(true);
         } else {
-            detailCcLabel.setVisible(false);
-            detailCcLabel.setManaged(false);
+            detailThreadCountBadge.setVisible(false);
+            detailThreadCountBadge.setManaged(false);
         }
 
-        detailBodyLabel.setText(mail.getBody());
-        btnToggleStarDetail.setText(mail.isStarred() ? "★ Bỏ sao" : "★ Gắn sao");
+        detailTimeLabel.setText(currentSelectedMail.getSentAt());
+        btnToggleStarDetail.setText(currentSelectedMail.isStarred() ? "★ Bỏ sao" : "★ Gắn sao");
 
-        // Attachments
-        if (mail.hasAttachments()) {
-            attachmentsSection.setVisible(true);
-            attachmentsSection.setManaged(true);
-            attachmentsHeaderLabel.setText("Tệp đính kèm (" + mail.getAttachmentCount() + "):");
-            attachmentsFlowPane.getChildren().clear();
+        threadMessagesContainer.getChildren().clear();
+        for (int i = 0; i < threadMessages.size(); i++) {
+            Email msg = threadMessages.get(i);
+            boolean isLatest = (i == threadMessages.size() - 1);
+            VBox card = createThreadMessageCard(msg, isLatest);
+            threadMessagesContainer.getChildren().add(card);
+        }
+    }
 
-            for (Attachment att : mail.getAttachments()) {
-                HBox chip = createAttachmentChip(att);
-                attachmentsFlowPane.getChildren().add(chip);
+    private VBox createThreadMessageCard(Email msg, boolean isLatest) {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("thread-card");
+        if (isLatest) {
+            card.getStyleClass().add("thread-card-latest");
+        }
+
+        // Header: Avatar, Sender info, Sent time
+        HBox header = new HBox(12);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane avatar = new StackPane();
+        avatar.getStyleClass().add("avatar-circle");
+        String initial = (msg.getSender() != null && !msg.getSender().isEmpty())
+                ? msg.getSender().substring(0, 1).toUpperCase() : "?";
+        Label avatarLabel = new Label(initial);
+        avatarLabel.getStyleClass().add("avatar-text");
+        avatar.getChildren().add(avatarLabel);
+
+        VBox metaBox = new VBox(2);
+        HBox.setHgrow(metaBox, Priority.ALWAYS);
+
+        HBox senderRow = new HBox(8);
+        senderRow.setAlignment(Pos.CENTER_LEFT);
+        String senderName = msg.getSender();
+        if (service != null && senderName != null && senderName.equalsIgnoreCase(service.getCurrentUsername())) {
+            senderName = "tôi (" + senderName + ")";
+        }
+        Label senderLabel = new Label(senderName);
+        senderLabel.getStyleClass().add("user-name-label");
+
+        Label addressLabel = new Label("<" + msg.getSender() + "@udpmail>");
+        addressLabel.getStyleClass().add("caption-muted");
+        senderRow.getChildren().addAll(senderLabel, addressLabel);
+
+        Label recLabel = new Label("Đến: " + msg.getRecipientsDisplay());
+        recLabel.getStyleClass().add("caption-muted");
+        recLabel.setWrapText(true);
+        metaBox.getChildren().addAll(senderRow, recLabel);
+
+        if (msg.getCc() != null && !msg.getCc().isEmpty()) {
+            Label ccLabel = new Label("CC: " + msg.getCcDisplay());
+            ccLabel.getStyleClass().add("caption-muted");
+            ccLabel.setWrapText(true);
+            metaBox.getChildren().add(ccLabel);
+        }
+
+        Label timeLabel = new Label(msg.getSentAt() != null ? msg.getSentAt() : "");
+        timeLabel.getStyleClass().add("caption-muted");
+
+        header.getChildren().addAll(avatar, metaBox, timeLabel);
+        card.getChildren().add(header);
+
+        Separator sep = new Separator();
+        sep.getStyleClass().add("panel-separator");
+        card.getChildren().add(sep);
+
+        // Body Text
+        VBox bodyBox = new VBox();
+        bodyBox.getStyleClass().add("mail-detail-body-container");
+        Label bodyLabel = new Label(msg.getBody() != null ? msg.getBody() : "");
+        bodyLabel.setWrapText(true);
+        bodyLabel.getStyleClass().add("mail-detail-body-text");
+        bodyBox.getChildren().add(bodyLabel);
+        card.getChildren().add(bodyBox);
+
+        // Attachments (if any)
+        if (msg.hasAttachments()) {
+            VBox attBox = new VBox(6);
+            Label attTitle = new Label("Tệp đính kèm (" + msg.getAttachmentCount() + "):");
+            attTitle.getStyleClass().add("card-title");
+            FlowPane flow = new FlowPane();
+            flow.setHgap(10);
+            flow.setVgap(10);
+            for (Attachment att : msg.getAttachments()) {
+                flow.getChildren().add(createAttachmentChip(att));
             }
-        } else {
-            attachmentsSection.setVisible(false);
-            attachmentsSection.setManaged(false);
+            attBox.getChildren().addAll(attTitle, flow);
+            card.getChildren().add(attBox);
         }
+
+        return card;
     }
 
     private HBox createAttachmentChip(Attachment att) {
@@ -671,12 +754,16 @@ public class ClientController {
     private void onReplyMail() {
         if (currentSelectedMail == null) return;
         onOpenCompose();
-        composeTitleLabel.setText("Trả lời: " + currentSelectedMail.getSubject());
-        composeToField.setText(currentSelectedMail.getSender());
-        String subj = currentSelectedMail.getSubject();
-        if (!subj.startsWith("Re:")) subj = "Re: " + subj;
-        composeSubjectField.setText(subj);
-        composeBodyArea.setText("\n\n--- Thư gốc từ " + currentSelectedMail.getSender() + " (" + currentSelectedMail.getSentAt() + ") ---\n" + currentSelectedMail.getBody());
+        String normalizedSubj = Email.normalizeSubject(currentSelectedMail.getSubject());
+        composeTitleLabel.setText("Trả lời: " + normalizedSubj);
+
+        String replyTarget = currentSelectedMail.getSender();
+        if (service != null && replyTarget != null && replyTarget.equalsIgnoreCase(service.getCurrentUsername())) {
+            replyTarget = currentSelectedMail.getRecipientsDisplay();
+        }
+        composeToField.setText(replyTarget);
+        composeSubjectField.setText("Re: " + normalizedSubj);
+        composeBodyArea.setText("\n\n--- Thư trước từ " + currentSelectedMail.getSender() + " (" + currentSelectedMail.getSentAt() + ") ---\n" + currentSelectedMail.getBody());
         replyToId = currentSelectedMail.getId();
     }
 
@@ -684,10 +771,11 @@ public class ClientController {
     private void onReplyAllMail() {
         if (currentSelectedMail == null) return;
         onReplyMail();
-        composeTitleLabel.setText("Trả lời tất cả: " + currentSelectedMail.getSubject());
+        String normalizedSubj = Email.normalizeSubject(currentSelectedMail.getSubject());
+        composeTitleLabel.setText("Trả lời tất cả: " + normalizedSubj);
         List<String> ccList = new ArrayList<>(currentSelectedMail.getRecipients());
         if (currentSelectedMail.getCc() != null) ccList.addAll(currentSelectedMail.getCc());
-        ccList.remove(service.getCurrentUsername());
+        if (service != null) ccList.remove(service.getCurrentUsername());
         ccList.remove(currentSelectedMail.getSender());
         if (!ccList.isEmpty()) {
             composeCcField.setText(String.join(", ", ccList));
@@ -700,12 +788,12 @@ public class ClientController {
     private void onForwardMail() {
         if (currentSelectedMail == null) return;
         onOpenCompose();
-        composeTitleLabel.setText("Chuyển tiếp: " + currentSelectedMail.getSubject());
+        String normalizedSubj = Email.normalizeSubject(currentSelectedMail.getSubject());
+        composeTitleLabel.setText("Chuyển tiếp: " + normalizedSubj);
         composeToField.clear();
-        String subj = currentSelectedMail.getSubject();
-        if (!subj.startsWith("Fwd:")) subj = "Fwd: " + subj;
-        composeSubjectField.setText(subj);
+        composeSubjectField.setText("Fwd: " + normalizedSubj);
         composeBodyArea.setText("\n\n--- Thư chuyển tiếp từ " + currentSelectedMail.getSender() + " (" + currentSelectedMail.getSentAt() + ") ---\n" + currentSelectedMail.getBody());
+        replyToId = currentSelectedMail.getId();
     }
 
     @FXML
@@ -805,6 +893,9 @@ public class ClientController {
             email.setBcc(bcc);
             email.setAttachments(attachments);
             email.setReplyToId(replyToId);
+            if (currentSelectedMail != null && replyToId != null) {
+                email.setThreadId(currentSelectedMail.getThreadId());
+            }
 
             boolean sent = service.sendMail(email);
 
