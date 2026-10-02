@@ -5,13 +5,16 @@ import com.udpchat.server.network.RequestHandler;
 import com.udpchat.server.network.ServerNetwork;
 import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
-import com.udpchat.server.service.MessageService;
+import com.udpchat.server.service.MailService;
+import com.udpchat.shared.model.Attachment;
+import com.udpchat.shared.model.Email;
+import com.udpchat.shared.model.MailFolder;
 import org.junit.jupiter.api.*;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -23,7 +26,7 @@ public class IntegrationTest {
 
     private static ServerNetwork serverNetwork;
     private static AuthService authService;
-    private static MessageService messageService;
+    private static MailService mailService;
     private static FileService fileService;
     private static Thread serverThread;
 
@@ -31,35 +34,37 @@ public class IntegrationTest {
     private static ClientService clientBob;
 
     private static final int PORT = 8888;
-    private static final AtomicReference<String> bobReceivedMessage = new AtomicReference<>();
-    private static CountDownLatch messageLatch = new CountDownLatch(1);
+    private static final AtomicReference<String> bobPushedMailId = new AtomicReference<>();
+    private static CountDownLatch newMailLatch = new CountDownLatch(1);
+
+    private static String sentMailId;
 
     @BeforeAll
     public static void setUpAll() throws Exception {
-        // Clean up server-data for clean test run
+        // Xóa sạch server-data để test từ đầu
         deleteDirectory(new File("server-data"));
 
         authService = new AuthService();
-        messageService = new MessageService();
+        mailService = new MailService();
         fileService = new FileService();
 
-        RequestHandler handler = new RequestHandler(authService, messageService, fileService, System.out::println);
+        RequestHandler handler = new RequestHandler(authService, mailService, fileService, System.out::println);
         serverNetwork = new ServerNetwork(handler, System.out::println);
 
         serverThread = new Thread(() -> serverNetwork.start(PORT));
         serverThread.setDaemon(true);
         serverThread.start();
 
-        // Give server a moment to bind
+        // Chờ server bind cổng UDP
         Thread.sleep(500);
 
         clientAlice = new ClientService("localhost", PORT);
         clientBob = new ClientService("localhost", PORT);
 
-        clientBob.setOnIncomingMessage(msg -> {
-            System.out.println("Bob received push message: " + msg);
-            bobReceivedMessage.set(msg);
-            messageLatch.countDown();
+        clientBob.setOnNewMailNotification((sender, subject, mailId) -> {
+            System.out.println("Bob nhận thông báo thư mới từ " + sender + ": " + subject + " (ID: " + mailId + ")");
+            bobPushedMailId.set(mailId);
+            newMailLatch.countDown();
         });
     }
 
@@ -76,15 +81,14 @@ public class IntegrationTest {
         String resp = clientAlice.register("alice", "secret123");
         assertTrue(resp.contains("OK"), "Alice register should succeed: " + resp);
 
-        // Check user file created
         File userFile = new File("server-data/users/alice.txt");
         assertTrue(userFile.exists(), "User file for alice should exist");
 
-        // Duplicate register should fail
+        // Đăng ký trùng lặp phải thất bại
         String dupResp = clientAlice.register("alice", "secret123");
         assertTrue(dupResp.contains("ERROR"), "Duplicate register should fail: " + dupResp);
 
-        // Register Bob
+        // Đăng ký Bob
         String bobResp = clientBob.register("bob", "pass456");
         assertTrue(bobResp.contains("OK"), "Bob register should succeed: " + bobResp);
     }
@@ -92,16 +96,16 @@ public class IntegrationTest {
     @Test
     @Order(2)
     public void testLogin() {
-        // Wrong password should fail
+        // Sai mật khẩu
         String failLogin = clientAlice.login("alice", "wrongpass");
         assertTrue(failLogin.contains("ERROR"), "Login with wrong password should fail");
 
-        // Correct login
+        // Đăng nhập đúng Alice
         String loginResp = clientAlice.login("alice", "secret123");
         assertTrue(loginResp.contains("OK"), "Alice login should succeed: " + loginResp);
         assertTrue(clientAlice.isLoggedIn());
 
-        // Login Bob
+        // Đăng nhập đúng Bob
         String bobLogin = clientBob.login("bob", "pass456");
         assertTrue(bobLogin.contains("OK"), "Bob login should succeed: " + bobLogin);
         assertTrue(clientBob.isLoggedIn());
@@ -111,100 +115,172 @@ public class IntegrationTest {
 
     @Test
     @Order(3)
-    public void testSendMessageAndForwarding() throws Exception {
-        String testContent = "Hello Bob, this is Alice via UDP!";
-        String sendResp = clientAlice.sendMessage(testContent);
-        assertTrue(sendResp.contains("OK"), "Alice message should be sent: " + sendResp);
+    public void testSendMailAndPushNotification() throws Exception {
+        Email email = new Email("alice", List.of("bob"), "Họp kế hoạch Q3", "Chào Bob, chúng ta cần họp vào 14h hôm nay.");
+        boolean sent = clientAlice.sendMail(email);
+        assertTrue(sent, "Alice sending mail to Bob should succeed");
+        sentMailId = email.getId();
 
-        // Wait for Bob's listener to receive the pushed message
-        boolean received = messageLatch.await(3, TimeUnit.SECONDS);
-        assertTrue(received, "Bob should receive the forwarded message within 3 seconds");
-        assertNotNull(bobReceivedMessage.get());
-        assertTrue(bobReceivedMessage.get().contains("alice: " + testContent));
+        // Chờ Bob nhận được push NEW_MAIL từ server qua UDP listener
+        boolean received = newMailLatch.await(3, TimeUnit.SECONDS);
+        assertTrue(received, "Bob should receive real-time NEW_MAIL push notification within 3s");
+        assertEquals(sentMailId, bobPushedMailId.get());
 
-        // Check messages.log on server
-        Path logPath = Paths.get("server-data", "messages", "messages.log");
-        assertTrue(Files.exists(logPath), "messages.log should exist on server");
-        String logContent = Files.readString(logPath);
-        assertTrue(logContent.contains("alice"));
-        assertTrue(logContent.contains(testContent));
-        // Verify format: IP|Tên|TĐ|Nội dung
-        String[] lines = logContent.trim().split("\r?\n");
-        assertTrue(lines.length >= 1);
-        String lastLine = lines[lines.length - 1];
-        String[] parts = lastLine.split("\\|", 4);
-        assertEquals(4, parts.length, "Message log should have 4 fields: IP|Tên|TĐ|Nội dung");
-        assertEquals("alice", parts[1]);
-        assertEquals(testContent, parts[3]);
+        // Bob kiểm tra danh sách Hộp thư đến (INBOX)
+        ClientService.MailListResult inboxResult = clientBob.listMails(MailFolder.INBOX, 1, 20);
+        assertNotNull(inboxResult.emails);
+        assertFalse(inboxResult.emails.isEmpty(), "Bob's inbox should contain at least 1 email");
+        assertEquals(1, inboxResult.unreadInbox, "Bob should have 1 unread email");
+
+        Email receivedMail = inboxResult.emails.get(0);
+        assertEquals("alice", receivedMail.getSender());
+        assertEquals("Họp kế hoạch Q3", receivedMail.getSubject());
+        assertFalse(receivedMail.isRead(), "Incoming email should be unread initially");
+
+        // Alice kiểm tra danh sách Đã gửi (SENT)
+        ClientService.MailListResult sentResult = clientAlice.listMails(MailFolder.SENT, 1, 20);
+        assertFalse(sentResult.emails.isEmpty(), "Alice's sent folder should have 1 email");
+        assertEquals("Họp kế hoạch Q3", sentResult.emails.get(0).getSubject());
     }
 
     @Test
     @Order(4)
-    public void testFileMessagePreservesDelimiters() throws Exception {
-        CountDownLatch fileMsgLatch = new CountDownLatch(1);
-        AtomicReference<String> bobContent = new AtomicReference<>();
-        
-        clientBob.setOnIncomingStructuredMessage((sender, time, content) -> {
-            bobContent.set(content);
-            fileMsgLatch.countDown();
-        });
+    public void testReadMailAndMarkRead() {
+        assertNotNull(sentMailId);
 
-        String filePayload = "[FILE]|landscape.png|1048576|IMAGE";
-        clientAlice.sendMessage(filePayload);
+        // Bob đọc chi tiết thư
+        Email fullMail = clientBob.readMail(sentMailId);
+        assertNotNull(fullMail, "Bob should be able to read full email");
+        assertEquals("Họp kế hoạch Q3", fullMail.getSubject());
+        assertEquals("Chào Bob, chúng ta cần họp vào 14h hôm nay.", fullMail.getBody());
 
-        boolean received = fileMsgLatch.await(3, TimeUnit.SECONDS);
-        assertTrue(received, "Bob should receive file message");
-        assertEquals(filePayload, bobContent.get(), "File payload must not be truncated");
+        // Đọc thư sẽ tự động chuyển trạng thái read = true trên server
+        ClientService.MailListResult inboxResult = clientBob.listMails(MailFolder.INBOX, 1, 20);
+        assertEquals(0, inboxResult.unreadInbox, "Unread count should become 0 after reading");
     }
 
     @Test
     @Order(5)
-    public void testFileUploadAndDownload() throws Exception {
-        // Create a test file
-        File tempDir = new File("target/test-files");
-        tempDir.mkdirs();
-        File uploadFile = new File(tempDir, "sample_document.txt");
-        String sampleText = "UDP File Transfer Test Content with multiple chunks. ".repeat(100);
-        Files.writeString(uploadFile.toPath(), sampleText);
+    public void testStarMail() {
+        assertNotNull(sentMailId);
 
-        // Alice uploads file
-        String uploadResp = clientAlice.uploadFile(uploadFile);
-        assertTrue(uploadResp.contains("OK"), "Upload should succeed: " + uploadResp);
+        // Bob gắn sao cho thư
+        boolean starred = clientBob.toggleStar(sentMailId, true);
+        assertTrue(starred, "Bob toggling star should succeed");
 
-        // Verify file stored on server (wait up to 3s for server thread to write to disk)
-        File serverFile = new File("server-data/files/sample_document.txt");
-        boolean serverFileFound = false;
-        for (int i = 0; i < 30; i++) {
-            if (serverFile.exists() && serverFile.length() == uploadFile.length()) {
-                serverFileFound = true;
-                break;
-            }
-            Thread.sleep(100);
-        }
-        assertTrue(serverFileFound, "File should be saved on server in server-data/files");
-        assertEquals(uploadFile.length(), serverFile.length(), "Uploaded file size should match");
-
-        // Bob downloads file
-        File downloadDir = new File("target/test-downloads");
-        downloadDir.mkdirs();
-        String downloadResp = clientBob.downloadFile("sample_document.txt", downloadDir);
-        assertTrue(downloadResp.contains("OK"), "Download should succeed: " + downloadResp);
-
-        File downloadedFile = new File(downloadDir, "sample_document.txt");
-        boolean downloadFileFound = false;
-        for (int i = 0; i < 30; i++) {
-            if (downloadedFile.exists() && downloadedFile.length() == uploadFile.length()) {
-                downloadFileFound = true;
-                break;
-            }
-            Thread.sleep(100);
-        }
-        assertTrue(downloadFileFound, "Downloaded file should exist");
-        assertEquals(sampleText, Files.readString(downloadedFile.toPath()), "Downloaded content should match original");
+        // Kiểm tra thư mục STARRED
+        ClientService.MailListResult starredResult = clientBob.listMails(MailFolder.STARRED, 1, 20);
+        assertFalse(starredResult.emails.isEmpty(), "Starred folder should contain the email");
+        assertEquals(sentMailId, starredResult.emails.get(0).getId());
     }
 
     @Test
     @Order(6)
+    public void testReplyMail() {
+        assertNotNull(sentMailId);
+
+        // Bob trả lời Alice
+        Email reply = new Email("bob", List.of("alice"), "Re: Họp kế hoạch Q3", "OK Alice, tôi sẽ tham gia đúng giờ.");
+        reply.setReplyToId(sentMailId);
+        boolean sentReply = clientBob.sendMail(reply);
+        assertTrue(sentReply, "Bob reply should succeed");
+
+        // Alice kiểm tra Inbox
+        ClientService.MailListResult aliceInbox = clientAlice.listMails(MailFolder.INBOX, 1, 20);
+        assertFalse(aliceInbox.emails.isEmpty(), "Alice should have the reply in inbox");
+        assertEquals("Re: Họp kế hoạch Q3", aliceInbox.emails.get(0).getSubject());
+    }
+
+    @Test
+    @Order(7)
+    public void testSaveDraftAndSearch() {
+        // Alice lưu bản nháp
+        Email draft = new Email("alice", List.of("bob"), "Dự thảo báo cáo UDP", "Nội dung đang viết dở...");
+        boolean saved = clientAlice.saveDraft(draft);
+        assertTrue(saved, "Saving draft should succeed");
+
+        // Kiểm tra thư mục DRAFTS
+        ClientService.MailListResult drafts = clientAlice.listMails(MailFolder.DRAFTS, 1, 20);
+        assertFalse(drafts.emails.isEmpty(), "Alice should have 1 draft");
+        assertEquals("Dự thảo báo cáo UDP", drafts.emails.get(0).getSubject());
+
+        // Tìm kiếm theo từ khóa
+        List<Email> searchResults = clientAlice.searchMail("báo cáo");
+        assertFalse(searchResults.isEmpty(), "Search for 'báo cáo' should find the draft");
+    }
+
+    @Test
+    @Order(8)
+    public void testAttachmentUploadAndDownload() throws Exception {
+        // Tạo tệp test
+        File tempDir = new File("target/test-files");
+        tempDir.mkdirs();
+        File uploadFile = new File(tempDir, "dinh_kem_hop.txt");
+        String fileContent = "Tai lieu dinh kem cuoc hop quan trong qua giao thuc UDP. ".repeat(80);
+        Files.writeString(uploadFile.toPath(), fileContent);
+
+        // Alice tải lên tệp đính kèm qua UDP
+        boolean uploaded = clientAlice.uploadAttachment(uploadFile, null);
+        assertTrue(uploaded, "Attachment upload should succeed via UDP");
+
+        // Alice gửi mail có đính kèm tệp
+        Attachment att = new Attachment(
+                UUID.randomUUID().toString(),
+                uploadFile.getName(),
+                uploadFile.length(),
+                "DOCUMENT",
+                "alice",
+                "2026-10-02 11:30:00"
+        );
+
+        Email mailWithAtt = new Email("alice", List.of("bob"), "Tài liệu đính kèm", "Gửi Bob tài liệu cuộc họp.");
+        mailWithAtt.setAttachments(List.of(att));
+        boolean sent = clientAlice.sendMail(mailWithAtt);
+        assertTrue(sent, "Sending email with attachment should succeed");
+
+        // Đảm bảo server đã lưu xong file đính kèm
+        File serverFile = new File("server-data/attachments/" + uploadFile.getName());
+        boolean serverFileReady = false;
+        for (int i = 0; i < 30; i++) {
+            if (serverFile.exists() && serverFile.length() == uploadFile.length()) {
+                serverFileReady = true;
+                break;
+            }
+            Thread.sleep(100);
+        }
+        assertTrue(serverFileReady, "Server should have finished saving attachment");
+
+        // Bob tải xuống tệp đính kèm qua UDP
+        File downloadDir = new File("target/test-downloads");
+        downloadDir.mkdirs();
+        boolean downloaded = clientBob.downloadAttachment(uploadFile.getName(), downloadDir, null);
+        assertTrue(downloaded, "Bob downloading attachment should succeed");
+
+        File downloadedFile = new File(downloadDir, uploadFile.getName());
+        assertTrue(downloadedFile.exists(), "Downloaded attachment should exist on disk");
+        assertEquals(fileContent, Files.readString(downloadedFile.toPath()), "Downloaded content must match");
+    }
+
+    @Test
+    @Order(9)
+    public void testDeleteMail() {
+        assertNotNull(sentMailId);
+
+        // Bob chuyển thư vào Thùng rác
+        boolean movedToTrash = clientBob.deleteMail(sentMailId, false);
+        assertTrue(movedToTrash, "Moving email to trash should succeed");
+
+        // Kiểm tra trong TRASH có thư
+        ClientService.MailListResult trash = clientBob.listMails(MailFolder.TRASH, 1, 20);
+        assertFalse(trash.emails.isEmpty(), "Trash should contain the deleted email");
+
+        // Xóa vĩnh viễn
+        boolean permDeleted = clientBob.deleteMail(sentMailId, true);
+        assertTrue(permDeleted, "Permanent delete should succeed");
+    }
+
+    @Test
+    @Order(10)
     public void testLogout() {
         String logoutAlice = clientAlice.logout();
         assertTrue(logoutAlice.contains("OK"), "Alice logout should succeed");
@@ -214,7 +290,7 @@ public class IntegrationTest {
         assertTrue(logoutBob.contains("OK"), "Bob logout should succeed");
         assertFalse(clientBob.isLoggedIn());
 
-        assertEquals(0, authService.getOnlineCount(), "Online sessions should be 0 after both logout");
+        assertEquals(0, authService.getOnlineCount(), "Online sessions should be 0 after logout");
     }
 
     private static void deleteDirectory(File dir) {
