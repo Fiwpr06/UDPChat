@@ -296,8 +296,9 @@
     -fx-border-width: 1px;
     -fx-border-radius: 6px;
     -fx-background-radius: 6px;
-    -fx-padding: 10px 14px;
+    -fx-padding: 8px 12px;
     -fx-spacing: 10px;
+    -fx-max-width: 320px;
 }
 
 .attachment-card:hover {
