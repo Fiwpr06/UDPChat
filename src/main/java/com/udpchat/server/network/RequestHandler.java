@@ -131,6 +131,18 @@ public class RequestHandler {
                     }
                     break;
                 }
+                case READ_THREAD: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String user = authService.getUsername(sessionKey);
+                        String threadId = params[0];
+                        List<Email> threadMessages = mailService.getThread(user, threadId);
+                        String base64 = JsonUtil.encodeBase64(JsonUtil.toCompactJson(threadMessages));
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", base64, String.valueOf(threadMessages.size())), senderAddr, senderPort);
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
                 case DELETE_MAIL: {
                     if (authService.isLoggedIn(sessionKey)) {
                         String user = authService.getUsername(sessionKey);
