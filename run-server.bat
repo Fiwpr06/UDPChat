@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 chcp 65001 >nul
 
-echo [UDP Chat] Khoi dong UDP Server...
+echo [UDP Mail] Khoi dong UDP Mail Server...
 
 if not defined JAVA_HOME (
     if exist "C:\Program Files\Java\jdk-21" (
