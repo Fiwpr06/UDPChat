@@ -1,15 +1,35 @@
 package com.udpchat.shared.protocol;
 
+/**
+ * Các lệnh giao thức qua UDP Mail System
+ */
 public enum Command {
+    // Xác thực
     REGISTER,
     LOGIN,
-    MESSAGE,
+    LOGOUT,
+
+    // Thao tác thư
+    SEND_MAIL,
+    LIST_MAIL,
+    READ_MAIL,
+    DELETE_MAIL,
+    STAR_MAIL,
+    MARK_READ,
+    SAVE_DRAFT,
+    SEARCH_MAIL,
+    GET_STATS,
+
+    // Truyền tệp đính kèm UDP
     UPLOAD,
     DOWNLOAD,
-    LOGOUT,
     CHUNK,
     ACK,
     TRANSFER_DONE,
-    INCOMING_MSG,
+
+    // Thông báo đẩy từ Server tới Client
+    NEW_MAIL,
+
+    // Phản hồi chung
     RESPONSE
 }
