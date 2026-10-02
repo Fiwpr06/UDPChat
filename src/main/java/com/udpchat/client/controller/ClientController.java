@@ -662,8 +662,16 @@ public class ClientController {
 
         // Filename and size
         VBox info = new VBox(2);
-        Label nameLabel = new Label(att.getFilename());
+        String fullFilename = att.getFilename() != null ? att.getFilename() : "file";
+        String displayFilename = att.getTruncatedFilename(24);
+        Label nameLabel = new Label(displayFilename);
         nameLabel.getStyleClass().add("user-name-label");
+        nameLabel.setMaxWidth(180);
+
+        Tooltip tooltip = new Tooltip(fullFilename + "\nKích thước: " + att.formatSize());
+        tooltip.setStyle("-fx-font-size: 12px;");
+        Tooltip.install(nameLabel, tooltip);
+
         Label sizeLabel = new Label(att.formatSize());
         sizeLabel.getStyleClass().add("caption-muted");
         info.getChildren().addAll(nameLabel, sizeLabel);
@@ -674,13 +682,13 @@ public class ClientController {
         btnDownload.getStyleClass().add("button-secondary");
         btnDownload.setOnAction(e -> {
             DirectoryChooser chooser = new DirectoryChooser();
-            chooser.setTitle("Chọn thư mục lưu tệp: " + att.getFilename());
+            chooser.setTitle("Chọn thư mục lưu tệp: " + fullFilename);
             File dir = chooser.showDialog(mainMailScreen.getScene().getWindow());
             if (dir != null) {
                 btnDownload.setDisable(true);
                 btnDownload.setText("Đang tải...");
                 new Thread(() -> {
-                    boolean ok = service.downloadAttachment(att.getFilename(), dir, null);
+                    boolean ok = service.downloadAttachment(fullFilename, dir, null);
                     Platform.runLater(() -> {
                         btnDownload.setDisable(false);
                         btnDownload.setText(ok ? "✓ Đã tải" : "Thử lại");
@@ -823,8 +831,16 @@ public class ClientController {
             chip.setAlignment(Pos.CENTER_LEFT);
             chip.getStyleClass().add("attachment-card");
 
-            Label name = new Label(f.getName() + " (" + formatFileSize(f.length()) + ")");
+            String fullFilename = f.getName();
+            String displayFilename = Attachment.truncateFileNameMiddle(fullFilename, 22);
+
+            Label name = new Label(displayFilename + " (" + formatFileSize(f.length()) + ")");
             name.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #F8FAFC;");
+            name.setMaxWidth(200);
+
+            Tooltip tooltip = new Tooltip(fullFilename + "\nKích thước: " + formatFileSize(f.length()));
+            tooltip.setStyle("-fx-font-size: 12px;");
+            Tooltip.install(name, tooltip);
 
             Button btnRemove = new Button("✕");
             btnRemove.getStyleClass().add("button-secondary");
@@ -1097,8 +1113,8 @@ public class ClientController {
 
     private String formatFileSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
-        return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+        if (bytes < 1024 * 1024) return String.format(Locale.US, "%.1f KB", bytes / 1024.0);
+        return String.format(Locale.US, "%.2f MB", bytes / (1024.0 * 1024.0));
     }
 
     private void showAlert(String title, String message) {
