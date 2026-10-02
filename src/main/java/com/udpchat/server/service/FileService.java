@@ -17,11 +17,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Quản lý truyền nhận và lưu trữ tệp đính kèm thư điện tử qua UDP
+ */
 public class FileService {
     private final Path filesDir;
 
     public FileService() {
-        filesDir = Paths.get("server-data", "files");
+        filesDir = Paths.get("server-data", "attachments");
         try {
             Files.createDirectories(filesDir);
         } catch (IOException e) {
@@ -50,10 +53,10 @@ public class FileService {
                         }
                     }
                 } catch (SocketTimeoutException e) {
-                    System.out.println("Timeout waiting for chunk");
+                    System.out.println("Timeout waiting for chunk " + chunksReceived + "/" + totalChunks);
                 }
             }
-            // wait for TRANSFER_DONE
+            // Chờ TRANSFER_DONE
             try {
                 String[] doneData = UDPUtil.receiveString(socket);
                 if (doneData != null && doneData[0].startsWith(Command.TRANSFER_DONE.name())) {
@@ -63,7 +66,7 @@ public class FileService {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            socket.setSoTimeout(0); // reset
+            socket.setSoTimeout(0);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -113,5 +116,26 @@ public class FileService {
 
     public boolean fileExists(String filename) {
         return Files.exists(filesDir.resolve(filename));
+    }
+
+    public long getTotalAttachmentsSize() {
+        if (!Files.exists(filesDir)) return 0;
+        try (var stream = Files.walk(filesDir)) {
+            return stream.filter(Files::isRegularFile)
+                    .mapToLong(p -> {
+                        try { return Files.size(p); } catch (Exception e) { return 0L; }
+                    }).sum();
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    public int getAttachmentCount() {
+        if (!Files.exists(filesDir)) return 0;
+        try (var stream = Files.list(filesDir)) {
+            return (int) stream.filter(Files::isRegularFile).count();
+        } catch (IOException e) {
+            return 0;
+        }
     }
 }
