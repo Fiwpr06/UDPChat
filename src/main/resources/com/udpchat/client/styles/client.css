@@ -1,5 +1,6 @@
 /* ==========================================================================
-   client.css - Specific Client UI Styling (Cyber Gold & Obsidian)
+   client.css - UDP Mail Client Styling (Gmail-inspired Cyber Gold & Obsidian)
+   100% Font Compatibility for Vietnamese (Segoe UI + Arial fallback)
    ========================================================================== */
 
 /* Main Workspace Root */
@@ -7,11 +8,107 @@
     -fx-background-color: #0B0F19;
 }
 
-/* Left Sidebar */
+/* ==========================================================================
+   TOP APPLICATION BAR
+   ========================================================================== */
+.top-app-bar {
+    -fx-background-color: #0D1322;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 8px 16px;
+}
+
+.search-field-container {
+    -fx-background-color: #121A2B;
+    -fx-border-color: #27354A;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 2px 10px;
+}
+
+.search-field-container:focused-within {
+    -fx-border-color: #F59E0B;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.25), 6, 0, 0, 0);
+}
+
+.search-input {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #F8FAFC;
+    -fx-prompt-text-fill: #64748B;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+    -fx-padding: 6px 4px;
+}
+
+/* ==========================================================================
+   LEFT SIDEBAR (FOLDERS & COMPOSE)
+   ========================================================================== */
 .sidebar-panel {
-    -fx-background-color: #0E1422;
+    -fx-background-color: #0E1424;
     -fx-border-color: #1E293B;
     -fx-border-width: 0 1px 0 0;
+}
+
+/* Prominent Compose Button */
+.compose-button {
+    -fx-background-color: linear-gradient(to right, #F59E0B, #D97706);
+    -fx-border-color: #B45309;
+    -fx-border-width: 1px;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-text-fill: #0B0F19;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+    -fx-padding: 10px 20px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.4), 8, 0, 0, 2);
+}
+
+.compose-button:hover {
+    -fx-background-color: linear-gradient(to right, #FBBF24, #F59E0B);
+    -fx-border-color: #F59E0B;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.6), 12, 0, 0, 2);
+    -fx-text-fill: #000000;
+}
+
+/* Mail Folder Navigation Buttons */
+.folder-nav-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-text-fill: #94A3B8;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: normal;
+    -fx-padding: 8px 12px;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.folder-nav-btn:hover {
+    -fx-background-color: #162032;
+    -fx-text-fill: #F1F5F9;
+}
+
+.folder-nav-btn-active {
+    -fx-background-color: rgba(245, 158, 11, 0.15);
+    -fx-border-color: rgba(245, 158, 11, 0.35);
+    -fx-border-width: 1px;
+    -fx-text-fill: #F59E0B;
+    -fx-font-weight: bold;
+}
+
+.folder-badge-count {
+    -fx-background-color: #F59E0B;
+    -fx-background-radius: 10px;
+    -fx-text-fill: #0B0F19;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-padding: 1px 7px;
 }
 
 .user-profile-card {
@@ -25,10 +122,10 @@
 .avatar-circle {
     -fx-background-color: linear-gradient(to bottom right, #F59E0B, #B45309);
     -fx-background-radius: 19px;
-    -fx-min-width: 38px;
-    -fx-min-height: 38px;
-    -fx-max-width: 38px;
-    -fx-max-height: 38px;
+    -fx-min-width: 36px;
+    -fx-min-height: 36px;
+    -fx-max-width: 36px;
+    -fx-max-height: 36px;
     -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.3), 6, 0, 0, 0);
 }
 
@@ -53,131 +150,224 @@
     -fx-text-fill: #10B981;
 }
 
-.sidebar-section-title {
-    -fx-font-family: "Segoe UI", "Arial", sans-serif;
-    -fx-font-size: 10.5px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #64748B;
-    -fx-padding: 4px 6px;
-}
-
-/* Auth Segmented Tab Switcher */
-.tab-switcher {
-    -fx-background-color: #080C14;
-    -fx-border-color: #1E293B;
-    -fx-border-width: 1px;
-    -fx-border-radius: 6px;
-    -fx-background-radius: 6px;
-    -fx-padding: 3px;
-}
-
-.tab-btn {
-    -fx-font-family: "Segoe UI", "Arial", sans-serif;
-    -fx-background-color: transparent;
-    -fx-border-color: transparent;
-    -fx-border-radius: 4px;
-    -fx-background-radius: 4px;
-    -fx-text-fill: #94A3B8;
-    -fx-font-size: 12px;
-    -fx-font-weight: normal;
-    -fx-padding: 6px 12px;
-    -fx-cursor: hand;
-}
-
-.tab-btn:hover {
-    -fx-text-fill: #F1F5F9;
-}
-
-.tab-btn-active {
-    -fx-background-color: #16202E;
-    -fx-border-color: #27354A;
-    -fx-border-width: 1px;
-    -fx-text-fill: #F59E0B;
-    -fx-font-weight: bold;
-}
-
-/* Workspace Center & Header */
-.workspace-content {
+/* ==========================================================================
+   CENTER PANEL (MAIL LIST VIEW)
+   ========================================================================== */
+.mail-list-panel {
     -fx-background-color: #0B0F19;
-}
-
-.workspace-header {
     -fx-border-color: #1E293B;
-    -fx-border-width: 0 0 1px 0;
-    -fx-padding: 0 0 10px 0;
+    -fx-border-width: 0 1px 0 0;
+    -fx-pref-width: 340px;
+    -fx-min-width: 280px;
 }
 
-.workspace-title {
-    -fx-font-family: "Segoe UI", "Arial", sans-serif;
-    -fx-font-size: 15px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #F8FAFC;
-}
-
-.workspace-subtitle {
-    -fx-font-family: "Segoe UI", "Arial", sans-serif;
-    -fx-font-size: 11.5px;
-    -fx-text-fill: #64748B;
-}
-
-.chat-input-bar {
-    -fx-padding: 6px 0 0 0;
-}
-
-/* Right Drawer Panel: Channel Media & Files */
-.channel-panel {
-    -fx-background-color: #0D131F;
-    -fx-border-color: #1E293B;
-    -fx-border-width: 0 0 0 1px;
-    -fx-pref-width: 270px;
-    -fx-max-width: 270px;
-}
-
-.channel-panel-header {
+.mail-list-header {
+    -fx-background-color: #0D1322;
     -fx-border-color: #1E293B;
     -fx-border-width: 0 0 1px 0;
     -fx-padding: 10px 14px;
 }
 
-.channel-section-title {
-    -fx-font-family: "Segoe UI", "Arial", sans-serif;
-    -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #94A3B8;
-    -fx-padding: 6px 0 2px 0;
-}
-
-.gallery-flow-pane {
-    -fx-hgap: 8px;
-    -fx-vgap: 8px;
-    -fx-padding: 4px;
-}
-
-.gallery-item {
-    -fx-background-color: #080C14;
-    -fx-border-color: #1E293B;
-    -fx-border-width: 1px;
-    -fx-border-radius: 4px;
-    -fx-background-radius: 4px;
+.mail-item-card {
+    -fx-background-color: #0D1424;
+    -fx-border-color: #1A2436;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 10px 12px;
     -fx-cursor: hand;
 }
 
-.gallery-item:hover {
+.mail-item-card:hover {
+    -fx-background-color: #141C30;
+}
+
+.mail-item-selected {
+    -fx-background-color: #18233C;
+    -fx-border-color: #F59E0B;
+    -fx-border-width: 0 0 1px 3px;
+}
+
+.mail-item-unread {
+    -fx-background-color: #111A2E;
+}
+
+.mail-sender-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.mail-subject-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: #CBD5E1;
+}
+
+.mail-snippet-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-text-fill: #64748B;
+}
+
+.mail-time-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 10.5px;
+    -fx-text-fill: #94A3B8;
+}
+
+.unread-indicator-dot {
+    -fx-background-color: #F59E0B;
+    -fx-background-radius: 4px;
+    -fx-min-width: 7px;
+    -fx-min-height: 7px;
+    -fx-max-width: 7px;
+    -fx-max-height: 7px;
+}
+
+.star-icon-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748B;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.star-icon-btn:hover {
+    -fx-text-fill: #F59E0B;
+}
+
+.star-icon-active {
+    -fx-text-fill: #F59E0B;
+}
+
+/* ==========================================================================
+   RIGHT PANEL (MAIL DETAIL VIEW)
+   ========================================================================== */
+.mail-detail-panel {
+    -fx-background-color: #0B0F19;
+}
+
+.mail-detail-header {
+    -fx-background-color: #0D1322;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 12px 18px;
+}
+
+.mail-detail-subject {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FAFC;
+}
+
+.mail-detail-body-container {
+    -fx-background-color: #0B0F19;
+    -fx-padding: 18px 20px;
+}
+
+.mail-detail-body-text {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #E2E8F0;
+    -fx-line-spacing: 4px;
+}
+
+/* Attachment Chip / Card */
+.attachment-card {
+    -fx-background-color: #111827;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 8px 12px;
+    -fx-spacing: 8px;
+}
+
+.attachment-card:hover {
     -fx-border-color: #F59E0B;
 }
 
-.file-list-item {
-    -fx-background-color: #111826;
-    -fx-border-color: #1E293B;
+.attachment-badge {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #F59E0B;
     -fx-border-width: 1px;
-    -fx-border-radius: 5px;
-    -fx-background-radius: 5px;
-    -fx-padding: 6px 8px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-text-fill: #F59E0B;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 1px 5px;
 }
 
+/* ==========================================================================
+   COMPOSE OVERLAY WINDOW (FLOATING GMAIL STYLE)
+   ========================================================================== */
+.compose-modal-card {
+    -fx-background-color: #0E1424;
+    -fx-border-color: #27354A;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.7), 24, 0, 0, 8);
+}
+
+.compose-header {
+    -fx-background-color: #131B2F;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-radius: 10px 10px 0 0;
+    -fx-background-radius: 10px 10px 0 0;
+    -fx-padding: 10px 14px;
+}
+
+.compose-input-row {
+    -fx-border-color: #1A2436;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 4px 10px;
+}
+
+.compose-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #F8FAFC;
+    -fx-prompt-text-fill: #475569;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+}
+
+.compose-body-area, .compose-body-area .content {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #F8FAFC;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 13px;
+}
+
+/* Mini Log Box */
 .mini-log-box, .mini-log-box .content {
     -fx-font-family: "Consolas", "Segoe UI", "Arial", sans-serif;
     -fx-font-size: 11px;
     -fx-control-inner-background: #060910;
     -fx-text-fill: #6EE7B7;
+}
+
+/* Empty Placeholder */
+.empty-placeholder {
+    -fx-alignment: CENTER;
+    -fx-padding: 40px;
+}
+
+.empty-placeholder-title {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #475569;
+}
+
+.empty-placeholder-desc {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: #334155;
 }
