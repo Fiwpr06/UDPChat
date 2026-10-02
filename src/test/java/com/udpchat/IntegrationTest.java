@@ -188,11 +188,48 @@ public class IntegrationTest {
         // Alice kiểm tra Inbox
         ClientService.MailListResult aliceInbox = clientAlice.listMails(MailFolder.INBOX, 1, 20);
         assertFalse(aliceInbox.emails.isEmpty(), "Alice should have the reply in inbox");
-        assertEquals("Re: Họp kế hoạch Q3", aliceInbox.emails.get(0).getSubject());
+        Email threadRep = aliceInbox.emails.get(0);
+        assertEquals("Re: Họp kế hoạch Q3", threadRep.getSubject());
+        assertEquals(2, threadRep.getThreadMessageCount(), "Thread should group 2 messages together");
+        assertTrue(threadRep.getThreadParticipants().contains("bob"), "Participants should include bob");
+
+        // Alice đọc toàn bộ luồng hội thoại
+        List<Email> threadMessages = clientAlice.getThreadMessages(threadRep.getThreadId());
+        assertEquals(2, threadMessages.size(), "getThreadMessages should return exactly 2 emails");
+        assertEquals("Họp kế hoạch Q3", threadMessages.get(0).getSubject());
+        assertEquals("Re: Họp kế hoạch Q3", threadMessages.get(1).getSubject());
     }
 
     @Test
     @Order(7)
+    public void testConversationThreadingMultiTurn() {
+        // Alice phản hồi tiếp cho Bob trong cùng luồng
+        ClientService.MailListResult aliceInbox = clientAlice.listMails(MailFolder.INBOX, 1, 20);
+        assertFalse(aliceInbox.emails.isEmpty());
+        Email parentThread = aliceInbox.emails.get(0);
+
+        Email reply2 = new Email("alice", List.of("bob"), "Re: Họp kế hoạch Q3", "Tuyệt vời, tôi đã chuẩn bị slide.");
+        reply2.setReplyToId(parentThread.getId());
+        reply2.setThreadId(parentThread.getThreadId());
+        boolean sentReply2 = clientAlice.sendMail(reply2);
+        assertTrue(sentReply2, "Alice sending second reply should succeed");
+
+        // Bob kiểm tra Inbox: Chỉ hiển thị duy nhất 1 luồng hội thoại gộp cả 3 thư
+        ClientService.MailListResult bobInbox = clientBob.listMails(MailFolder.INBOX, 1, 20);
+        assertFalse(bobInbox.emails.isEmpty(), "Bob inbox should have the conversation thread");
+        Email bobThread = bobInbox.emails.get(0);
+        assertEquals(3, bobThread.getThreadMessageCount(), "Thread should now contain 3 messages");
+
+        // Bob đọc luồng hội thoại: Cả 3 thư theo đúng thứ tự thời gian
+        List<Email> fullThread = clientBob.getThreadMessages(bobThread.getThreadId());
+        assertEquals(3, fullThread.size(), "Bob should get all 3 messages in the conversation");
+        assertEquals("alice", fullThread.get(0).getSender());
+        assertEquals("bob", fullThread.get(1).getSender());
+        assertEquals("alice", fullThread.get(2).getSender());
+    }
+
+    @Test
+    @Order(8)
     public void testSaveDraftAndSearch() {
         // Alice lưu bản nháp
         Email draft = new Email("alice", List.of("bob"), "Dự thảo báo cáo UDP", "Nội dung đang viết dở...");
@@ -210,7 +247,7 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     public void testAttachmentUploadAndDownload() throws Exception {
         // Tạo tệp test
         File tempDir = new File("target/test-files");
@@ -262,7 +299,7 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     public void testDeleteMail() {
         assertNotNull(sentMailId);
 
@@ -280,7 +317,7 @@ public class IntegrationTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     public void testLogout() {
         String logoutAlice = clientAlice.logout();
         assertTrue(logoutAlice.contains("OK"), "Alice logout should succeed");
