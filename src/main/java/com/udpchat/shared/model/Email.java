@@ -4,12 +4,18 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
- * Đại diện cho thư điện tử hoàn chỉnh theo mô hình Gmail
+ * Đại diện cho thư điện tử hoàn chỉnh theo mô hình hội thoại (Conversation Threading) của Gmail
  */
 public class Email implements Serializable {
     private String id;
+    private String threadId;          // ID luồng hội thoại chung cho chuỗi thư
+    private int threadMessageCount = 1; // Số lượng thư trong luồng hội thoại
+    private List<String> threadParticipants = new ArrayList<>(); // Danh sách người tham gia luồng
+    private long timestamp = System.currentTimeMillis(); // Mốc thời gian đơn điệu để sắp xếp chính xác luồng
+
     private String sender;
     private List<String> recipients = new ArrayList<>();
     private List<String> cc = new ArrayList<>();
@@ -26,6 +32,7 @@ public class Email implements Serializable {
 
     public Email() {
         this.id = UUID.randomUUID().toString();
+        this.threadId = this.id;
     }
 
     public Email(String sender, List<String> recipients, String subject, String body) {
@@ -34,6 +41,21 @@ public class Email implements Serializable {
         if (recipients != null) this.recipients = new ArrayList<>(recipients);
         this.subject = subject;
         this.body = body;
+    }
+
+    /**
+     * Chuẩn hóa tiêu đề: loại bỏ các tiền tố Re:, Fwd:, Fw:, RE:, FWD: lặp lại
+     */
+    public static String normalizeSubject(String subj) {
+        if (subj == null || subj.trim().isEmpty()) {
+            return "(Không có chủ đề)";
+        }
+        String clean = subj.trim();
+        Pattern prefixPattern = Pattern.compile("^(re|fwd|fw)\\s*:\\s*", Pattern.CASE_INSENSITIVE);
+        while (prefixPattern.matcher(clean).find()) {
+            clean = prefixPattern.matcher(clean).replaceFirst("").trim();
+        }
+        return clean.isEmpty() ? "(Không có chủ đề)" : clean;
     }
 
     public boolean hasAttachments() {
@@ -85,6 +107,19 @@ public class Email implements Serializable {
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
+    public String getThreadId() {
+        return (threadId != null && !threadId.isEmpty()) ? threadId : id;
+    }
+    public void setThreadId(String threadId) { this.threadId = threadId; }
+
+    public int getThreadMessageCount() { return Math.max(1, threadMessageCount); }
+    public void setThreadMessageCount(int threadMessageCount) { this.threadMessageCount = threadMessageCount; }
+
+    public List<String> getThreadParticipants() { return threadParticipants; }
+    public void setThreadParticipants(List<String> threadParticipants) {
+        this.threadParticipants = threadParticipants != null ? threadParticipants : new ArrayList<>();
+    }
+
     public String getSender() { return sender; }
     public void setSender(String sender) { this.sender = sender; }
 
@@ -123,4 +158,7 @@ public class Email implements Serializable {
 
     public String getReplyToId() { return replyToId; }
     public void setReplyToId(String replyToId) { this.replyToId = replyToId; }
+
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 }
