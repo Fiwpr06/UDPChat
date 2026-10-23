@@ -36,7 +36,9 @@ public class AuthService {
             return "Lỗi: Tài khoản '" + username + "' đã tồn tại";
         }
         try {
-            String content = "password=" + password + System.lineSeparator() + "ip=" + (clientIp != null ? clientIp : "127.0.0.1");
+            String content = "password=" + password + System.lineSeparator()
+                    + "ip=" + (clientIp != null ? clientIp : "127.0.0.1") + System.lineSeparator()
+                    + "email=";
             Files.writeString(userFile, content, java.nio.charset.StandardCharsets.UTF_8);
             return "Thành công: Đăng ký tài khoản '" + username + "' thành công";
         } catch (IOException e) {
@@ -112,6 +114,77 @@ public class AuthService {
 
     public int getOnlineCount() {
         return onlineSessions.size();
+    }
+
+    /**
+     * Lấy địa chỉ email thực tế của người dùng từ tệp cấu hình tài khoản
+     */
+    public String getUserEmail(String username) {
+        if (username == null || username.trim().isEmpty()) return null;
+        if (username.contains("@")) {
+            return username.trim();
+        }
+        Path userFile = usersDir.resolve(username + ".txt");
+        if (!Files.exists(userFile)) return null;
+        try {
+            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
+            for (String line : content.split("\\r?\\n")) {
+                line = line.trim();
+                if (line.startsWith("email=")) {
+                    String em = line.substring("email=".length()).trim();
+                    return em.isEmpty() ? null : em;
+                }
+            }
+        } catch (IOException ignored) {}
+        return null;
+    }
+
+    /**
+     * Thiết lập địa chỉ email thực tế cho người dùng
+     */
+    public boolean setUserEmail(String username, String email) {
+        if (username == null || username.trim().isEmpty()) return false;
+        Path userFile = usersDir.resolve(username + ".txt");
+        if (!Files.exists(userFile)) return false;
+        try {
+            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
+            StringBuilder sb = new StringBuilder();
+            boolean emailFound = false;
+            for (String line : content.split("\\r?\\n")) {
+                if (line.trim().startsWith("email=")) {
+                    sb.append("email=").append(email != null ? email.trim() : "").append(System.lineSeparator());
+                    emailFound = true;
+                } else if (!line.trim().isEmpty()) {
+                    sb.append(line.trim()).append(System.lineSeparator());
+                }
+            }
+            if (!emailFound) {
+                sb.append("email=").append(email != null ? email.trim() : "").append(System.lineSeparator());
+            }
+            Files.writeString(userFile, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Lấy bảng ánh xạ toàn bộ username -> email thực tế
+     */
+    public java.util.Map<String, String> getAllUserEmails() {
+        java.util.Map<String, String> map = new java.util.HashMap<>();
+        if (!Files.exists(usersDir)) return map;
+        try (var stream = Files.list(usersDir)) {
+            for (Path p : stream.filter(f -> f.toString().endsWith(".txt")).toList()) {
+                String fname = p.getFileName().toString();
+                String username = fname.substring(0, fname.length() - 4);
+                String email = getUserEmail(username);
+                if (email != null && !email.isEmpty()) {
+                    map.put(username, email);
+                }
+            }
+        } catch (IOException ignored) {}
+        return map;
     }
 
     public static String makeSessionKey(InetAddress addr, int port) {

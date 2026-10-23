@@ -1,0 +1,20 @@
+# Cấu hình mẫu tích hợp Gmail thật (SMTP & IMAP) cho UDP Mail Server
+# Sao chép tệp này thành server-data/gmail-config.properties hoặc cấu hình trực tiếp trên giao diện Server
+
+# Bật/tắt tích hợp Gmail (true/false)
+gmail.enabled=false
+
+# Địa chỉ tài khoản Gmail của bạn
+gmail.address=your_account@gmail.com
+
+# Mật khẩu ứng dụng 16 ký tự (Tạo tại Google Account -> Bảo mật -> Xác minh 2 bước -> Mật khẩu ứng dụng)
+gmail.app.password=xxxx xxxx xxxx xxxx
+
+# Cấu hình SMTP (Gửi mail)
+gmail.smtp.host=smtp.gmail.com
+gmail.smtp.port=587
+
+# Cấu hình IMAP (Nhận mail)
+gmail.imap.host=imap.gmail.com
+gmail.imap.port=993
+gmail.imap.poll.interval.seconds=60

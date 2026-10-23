@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 public class Email implements Serializable {
     private String id;
     private String threadId;          // ID luồng hội thoại chung cho chuỗi thư
+    private String gmailMessageId;    // Message-ID liên kết với Gmail thật
     private int threadMessageCount = 1; // Số lượng thư trong luồng hội thoại
     private List<String> threadParticipants = new ArrayList<>(); // Danh sách người tham gia luồng
     private long timestamp = System.currentTimeMillis(); // Mốc thời gian đơn điệu để sắp xếp chính xác luồng
@@ -158,6 +159,9 @@ public class Email implements Serializable {
 
     public String getReplyToId() { return replyToId; }
     public void setReplyToId(String replyToId) { this.replyToId = replyToId; }
+
+    public String getGmailMessageId() { return gmailMessageId; }
+    public void setGmailMessageId(String gmailMessageId) { this.gmailMessageId = gmailMessageId; }
 
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }

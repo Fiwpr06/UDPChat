@@ -96,6 +96,27 @@ public class MailService {
     }
 
     /**
+     * Nhận thư từ nguồn bên ngoài (như Gmail IMAP) và lưu vào INBOX của người nhận nội bộ
+     */
+    public synchronized boolean receiveExternalMail(String username, Email email) {
+        if (username == null || email == null) return false;
+        if (email.getId() == null || email.getId().isEmpty()) {
+            email.setId(UUID.randomUUID().toString());
+        }
+        if (email.getSentAt() == null || email.getSentAt().isEmpty()) {
+            email.setSentAt(LocalDateTime.now().format(formatter));
+        }
+        email.setFolder(MailFolder.INBOX);
+        email.setRead(false);
+        email.setStarred(false);
+        email.setTimestamp(Math.max(email.getTimestamp(), SEQUENCE.incrementAndGet()));
+        if (email.getThreadId() == null || email.getThreadId().isEmpty()) {
+            email.setThreadId(email.getId());
+        }
+        return saveEmailToFile(username, MailFolder.INBOX, email);
+    }
+
+    /**
      * Lấy danh sách thư theo thư mục, tự động GỘP THƯ THEO CHUỖI HỘI THOẠI (Conversation Threading)
      */
     public synchronized List<Email> listMails(String username, MailFolder folder, int page, int pageSize) {

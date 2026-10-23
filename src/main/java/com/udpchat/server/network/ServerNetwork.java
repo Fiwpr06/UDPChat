@@ -55,4 +55,8 @@ public class ServerNetwork {
     public boolean isRunning() {
         return running;
     }
+
+    public DatagramSocket getSocket() {
+        return socket;
+    }
 }

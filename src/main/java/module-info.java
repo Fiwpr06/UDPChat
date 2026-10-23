@@ -3,6 +3,7 @@ module com.udpchat {
     requires javafx.fxml;
     requires java.desktop;
     requires com.google.gson;
+    requires jakarta.mail;
 
     opens com.udpchat.client.controller to javafx.fxml;
     opens com.udpchat.server.controller to javafx.fxml;
