@@ -107,6 +107,11 @@
                     <Label text="Mật khẩu (Password):" styleClass="input-label"/>
                     <PasswordField fx:id="passwordField" promptText="Nhập mật khẩu" styleClass="form-input" onAction="#onAuthAction"/>
                 </VBox>
+
+                <VBox fx:id="regEmailContainer" spacing="6" visible="false" managed="false">
+                    <Label text="Địa chỉ Gmail (Tùy chọn, để nhận thư thật):" styleClass="input-label"/>
+                    <TextField fx:id="regEmailField" promptText="Ví dụ: yourname@gmail.com" styleClass="form-input"/>
+                </VBox>
             </VBox>
 
             <!-- Status Banner -->
@@ -211,12 +216,13 @@
                     <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
                     <HBox alignment="CENTER_LEFT" spacing="6">
                         <Label text="Hộp thư:" styleClass="caption-muted"/>
-                        <Label fx:id="userEmailDisplayLabel" text="alice" styleClass="badge-server-mini"/>
+                        <Label fx:id="userEmailDisplayLabel" text="Chưa liên kết" styleClass="badge-server-mini"/>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="6">
                         <Label text="Máy chủ:" styleClass="caption-muted"/>
                         <Label fx:id="serverAddressDisplayLabel" text="127.0.0.1:8888" styleClass="badge-server-mini"/>
                     </HBox>
+                    <Button fx:id="btnLinkGmail" text="🔗 Liên kết Gmail (OAuth)" onAction="#onLinkGmail" maxWidth="Infinity" styleClass="button-secondary"/>
                 </VBox>
 
                 <!-- Bottom Controls -->
