@@ -7,9 +7,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Đọc và quản lý thông tin Client ID & Client Secret của Google OAuth 2.0 (Desktop App)
@@ -22,25 +25,60 @@ public class OAuthConfig {
 
     public static OAuthConfig load() {
         OAuthConfig config = new OAuthConfig();
+        config.reload();
+        return config;
+    }
 
-        // 1. Thử đọc từ server-data/client_secret.json
-        Path externalPath = Paths.get("server-data", "client_secret.json");
-        if (Files.exists(externalPath)) {
-            try (InputStream in = Files.newInputStream(externalPath)) {
-                if (config.parseJson(in)) {
-                    return config;
-                }
-            } catch (Exception ignored) {}
+    /**
+     * Tự động quét và nạp cấu hình OAuth từ các vị trí tệp phổ biến và classpath.
+     */
+    public boolean reload() {
+        List<Path> candidatePaths = new ArrayList<>();
+
+        // 1. Các đường dẫn ưu tiên trực tiếp
+        candidatePaths.add(Paths.get("src", "main", "resources", "client_secret.json"));
+        candidatePaths.add(Paths.get("server-data", "client_secret.json"));
+        candidatePaths.add(Paths.get("client_secret.json"));
+        candidatePaths.add(Paths.get("target", "classes", "client_secret.json"));
+
+        // 2. Quét mở rộng mọi tệp dạng client_secret*.json trong các thư mục
+        String[] searchDirs = { "src/main/resources", ".", "server-data", "target/classes" };
+        for (String dir : searchDirs) {
+            Path p = Paths.get(dir);
+            if (Files.exists(p) && Files.isDirectory(p)) {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(p, "client_secret*.json")) {
+                    for (Path entry : stream) {
+                        if (!candidatePaths.contains(entry)) {
+                            candidatePaths.add(entry);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
         }
 
-        // 2. Thử đọc từ classpath: /client_secret.json
+        // 3. Duyệt kiểm tra các tệp trên hệ thống tệp
+        for (Path path : candidatePaths) {
+            if (Files.exists(path) && Files.isRegularFile(path)) {
+                try (InputStream in = Files.newInputStream(path)) {
+                    if (this.parseJson(in) && this.isConfigured()) {
+                        System.out.println("[OAuthConfig] ✓ Đã nạp thành công cấu hình Google Client từ: " + path);
+                        return true;
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // 4. Fallback: nạp từ classpath: /client_secret.json
         try (InputStream in = OAuthConfig.class.getResourceAsStream("/client_secret.json")) {
             if (in != null) {
-                config.parseJson(in);
+                if (this.parseJson(in) && this.isConfigured()) {
+                    System.out.println("[OAuthConfig] ✓ Đã nạp cấu hình Google Client từ classpath.");
+                    return true;
+                }
             }
         } catch (Exception ignored) {}
 
-        return config;
+        return false;
     }
 
     private boolean parseJson(InputStream in) {

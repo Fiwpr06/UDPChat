@@ -109,9 +109,17 @@ public class ServerController {
     }
 
     private void loadOAuthConfig() {
-        oAuthConfig = OAuthConfig.load();
-        oAuthService = new OAuthService(oAuthConfig, authService);
-        smtpDeliveryService = new SmtpDeliveryService(oAuthService, this::log);
+        if (oAuthConfig == null) {
+            oAuthConfig = OAuthConfig.load();
+        } else {
+            oAuthConfig.reload();
+        }
+        if (oAuthService == null) {
+            oAuthService = new OAuthService(oAuthConfig, authService);
+        }
+        if (smtpDeliveryService == null) {
+            smtpDeliveryService = new SmtpDeliveryService(oAuthService, this::log);
+        }
 
         if (oAuthConfig.isConfigured()) {
             if (oauthStatusLabel != null) {
@@ -121,7 +129,7 @@ public class ServerController {
                 oauthStatusIndicator.getStyleClass().removeAll("status-offline");
                 oauthStatusIndicator.getStyleClass().add("status-online");
             }
-            log("[OAuth 2.0] Đã nạp thành công cấu hình Google Client.");
+            log("[OAuth 2.0] ✓ Đã nạp thành công Google Client ID: " + maskClientId(oAuthConfig.getClientId()));
         } else {
             if (oauthStatusLabel != null) {
                 oauthStatusLabel.setText("Chưa cấu hình (client_secret.json)");
@@ -130,7 +138,7 @@ public class ServerController {
                 oauthStatusIndicator.getStyleClass().removeAll("status-online");
                 oauthStatusIndicator.getStyleClass().add("status-offline");
             }
-            log("[OAuth 2.0] Lưu ý: Hãy cấu hình client_secret.json nếu muốn đăng nhập Google qua trình duyệt.");
+            log("[OAuth 2.0] Lưu ý: Chưa tìm thấy cấu hình hợp lệ. Hãy đặt tệp client_secret.json vào thư mục dự án.");
         }
     }
 
@@ -142,9 +150,6 @@ public class ServerController {
     @FXML
     private void onReloadOAuth() {
         loadOAuthConfig();
-        if (requestHandler != null) {
-            requestHandler = new RequestHandler(authService, mailService, fileService, oAuthService, smtpDeliveryService, this::log);
-        }
         log("[OAuth 2.0] Đã tải lại cấu hình Google OAuth.");
     }
 
