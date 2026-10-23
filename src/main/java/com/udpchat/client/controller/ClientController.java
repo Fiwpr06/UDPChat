@@ -1,6 +1,7 @@
 package com.udpchat.client.controller;
 
 import com.udpchat.client.service.ClientService;
+import com.udpchat.client.service.OAuthFlowHelper;
 import com.udpchat.shared.model.Attachment;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
@@ -43,6 +44,8 @@ public class ClientController {
     @FXML private Button tabRegisterButton;
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
+    @FXML private VBox regEmailContainer;
+    @FXML private TextField regEmailField;
     @FXML private Label authStatusLabel;
     @FXML private Button authActionButton;
 
@@ -64,6 +67,7 @@ public class ClientController {
     @FXML private Button btnFolderTrash;
     @FXML private Label userEmailDisplayLabel;
     @FXML private Label serverAddressDisplayLabel;
+    @FXML private Button btnLinkGmail;
     @FXML private Button btnToggleLog;
     @FXML private Button btnLogout;
 
@@ -209,6 +213,10 @@ public class ClientController {
         authModeTitle.setText("Đăng nhập Hộp thư");
         authModeSubtitle.setText("Nhập tài khoản để truy cập hệ thống thư điện tử UDP");
         authActionButton.setText("Đăng nhập ngay");
+        if (regEmailContainer != null) {
+            regEmailContainer.setVisible(false);
+            regEmailContainer.setManaged(false);
+        }
         hideAuthStatus();
     }
 
@@ -220,6 +228,10 @@ public class ClientController {
         authModeTitle.setText("Đăng ký Tài khoản mới");
         authModeSubtitle.setText("Tạo tài khoản để nhận địa chỉ hộp thư điện tử cá nhân");
         authActionButton.setText("Tạo tài khoản");
+        if (regEmailContainer != null) {
+            regEmailContainer.setVisible(true);
+            regEmailContainer.setManaged(true);
+        }
         hideAuthStatus();
     }
 
@@ -240,7 +252,8 @@ public class ClientController {
             if (isLoginMode) {
                 result = service.login(username, password);
             } else {
-                result = service.register(username, password);
+                String email = regEmailField != null ? regEmailField.getText().trim() : null;
+                result = service.register(username, password, email);
             }
 
             Platform.runLater(() -> {
@@ -248,7 +261,7 @@ public class ClientController {
                 if (result.startsWith("RESPONSE|OK") || result.contains("Thành công") || result.startsWith("OK")) {
                     if (isLoginMode) {
                         currentUserBadge.setText(username);
-                        userEmailDisplayLabel.setText(username + "@udpmail");
+                        updateUserEmailBadge(service.getCurrentUserEmail());
                         showMainMailScreen();
                         showMailListView();
                         loadMails(MailFolder.INBOX, 1);
@@ -279,6 +292,107 @@ public class ClientController {
     private void hideAuthStatus() {
         authStatusLabel.setVisible(false);
         authStatusLabel.setManaged(false);
+    }
+
+    private void updateUserEmailBadge(String email) {
+        if (email != null && !email.trim().isEmpty() && !email.toLowerCase().contains("@udpmail")) {
+            userEmailDisplayLabel.setText(email.trim());
+            if (btnLinkGmail != null) {
+                btnLinkGmail.setText("✓ Đã liên kết: " + (email.length() > 18 ? email.substring(0, 15) + "..." : email));
+            }
+        } else {
+            userEmailDisplayLabel.setText("Chưa liên kết");
+            if (btnLinkGmail != null) {
+                btnLinkGmail.setText("🔗 Liên kết Gmail (OAuth)");
+            }
+        }
+    }
+
+    @FXML
+    private void onLinkGmail() {
+        if (service == null || !service.isLoggedIn()) return;
+
+        Alert choiceAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        choiceAlert.setTitle("Cấu hình Gmail cá nhân");
+        choiceAlert.setHeaderText("Chọn phương thức thiết lập Gmail");
+        choiceAlert.setContentText("1. 'Google OAuth 2.0': Mở trình duyệt đăng nhập Google để tự động cấp quyền.\n2. 'Nhập địa chỉ Email': Nhập địa chỉ Gmail thủ công.");
+
+        ButtonType btnOAuth = new ButtonType("Google OAuth 2.0");
+        ButtonType btnManual = new ButtonType("Nhập địa chỉ Email");
+        ButtonType btnCancel = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        choiceAlert.getButtonTypes().setAll(btnOAuth, btnManual, btnCancel);
+        Optional<ButtonType> opt = choiceAlert.showAndWait();
+
+        if (opt.isEmpty() || opt.get() == btnCancel) {
+            return;
+        }
+
+        if (opt.get() == btnManual) {
+            TextInputDialog dialog = new TextInputDialog(service.getCurrentUserEmail() != null ? service.getCurrentUserEmail() : "");
+            dialog.setTitle("Cài đặt địa chỉ Gmail");
+            dialog.setHeaderText("Nhập địa chỉ Gmail để nhận thư nội bộ và thư thật:");
+            dialog.setContentText("Địa chỉ Gmail:");
+
+            dialog.showAndWait().ifPresent(entered -> {
+                String clean = entered.trim();
+                if (!clean.isEmpty()) {
+                    new Thread(() -> {
+                        boolean ok = service.setUserEmail(clean);
+                        Platform.runLater(() -> {
+                            if (ok) {
+                                updateUserEmailBadge(clean);
+                                showAlert("Thành công", "Đã lưu địa chỉ Gmail: " + clean);
+                            } else {
+                                showAlert("Thất bại", "Không thể lưu địa chỉ Gmail trên máy chủ.");
+                            }
+                        });
+                    }).start();
+                }
+            });
+            return;
+        }
+
+        // Luồng OAuth 2.0
+        new Thread(() -> {
+            try {
+                OAuthFlowHelper.OAuthSession session = OAuthFlowHelper.prepareSession();
+                String redirectUri = session.getRedirectUri();
+                String authUrl = service.requestOAuthUrl(redirectUri);
+
+                if (authUrl == null || authUrl.isEmpty()) {
+                    Platform.runLater(() -> {
+                        showAlert("Thông báo OAuth", "Máy chủ chưa cấu hình client_secret.json từ Google Cloud.\nBạn có thể chọn 'Nhập địa chỉ Email' để sử dụng ngay.");
+                    });
+                    session.cancel();
+                    return;
+                }
+
+                Platform.runLater(() -> {
+                    showAlert("Đang mở trình duyệt", "Trình duyệt sẽ mở trang đăng nhập Google.\nHãy cấp quyền để ứng dụng kết nối hộp thư của bạn.");
+                });
+
+                OAuthFlowHelper.openBrowser(authUrl);
+
+                // Chờ callback từ browser
+                OAuthFlowHelper.OAuthCallbackResult result = session.getFuture().get(120, java.util.concurrent.TimeUnit.SECONDS);
+                String exchangeResult = service.sendOAuthCallback(result.authCode, result.redirectUri);
+
+                Platform.runLater(() -> {
+                    if (exchangeResult.startsWith("OK")) {
+                        String email = service.getCurrentUserEmail();
+                        updateUserEmailBadge(email);
+                        showAlert("Thành công", "Đã liên kết thành công với tài khoản Gmail: " + (email != null ? email : ""));
+                    } else {
+                        showAlert("Lỗi OAuth", "Không thể đổi token: " + exchangeResult);
+                    }
+                });
+            } catch (java.util.concurrent.TimeoutException te) {
+                Platform.runLater(() -> showAlert("Hết thời gian", "Quá thời gian chờ phản hồi đăng nhập từ trình duyệt."));
+            } catch (Exception e) {
+                Platform.runLater(() -> showAlert("Lỗi kết nối", "Quá trình liên kết OAuth gặp sự cố: " + e.getMessage()));
+            }
+        }).start();
     }
 
     // =========================================================================
@@ -597,7 +711,9 @@ public class ClientController {
         Label senderLabel = new Label(senderName);
         senderLabel.getStyleClass().add("user-name-label");
 
-        Label addressLabel = new Label("<" + msg.getSender() + "@udpmail>");
+        String senderEm = msg.getSenderEmail();
+        String displayAddress = (senderEm != null && !senderEm.isEmpty()) ? senderEm : msg.getSender();
+        Label addressLabel = new Label("<" + displayAddress + ">");
         addressLabel.getStyleClass().add("caption-muted");
         senderRow.getChildren().addAll(senderLabel, addressLabel);
 
