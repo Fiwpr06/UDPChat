@@ -9,6 +9,13 @@ public enum Command {
     LOGIN,
     LOGOUT,
 
+    // Google OAuth 2.0 & Email
+    OAUTH_START,
+    OAUTH_CALLBACK,
+    OAUTH_STATUS,
+    SET_EMAIL,
+    GET_EMAIL,
+
     // Thao tác thư
     SEND_MAIL,
     LIST_MAIL,

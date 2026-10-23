@@ -105,4 +105,24 @@ public class ProtocolHelper {
     public static String buildGetStatsRequest() {
         return buildRequest(Command.GET_STATS);
     }
+
+    public static String buildOAuthStartRequest(String redirectUri) {
+        return buildRequest(Command.OAUTH_START, redirectUri != null ? redirectUri : "");
+    }
+
+    public static String buildOAuthCallbackRequest(String authCode, String redirectUri) {
+        return buildRequest(Command.OAUTH_CALLBACK, authCode != null ? authCode : "", redirectUri != null ? redirectUri : "");
+    }
+
+    public static String buildOAuthStatusRequest() {
+        return buildRequest(Command.OAUTH_STATUS);
+    }
+
+    public static String buildSetEmailRequest(String email) {
+        return buildRequest(Command.SET_EMAIL, email != null ? email : "");
+    }
+
+    public static String buildGetEmailRequest() {
+        return buildRequest(Command.GET_EMAIL);
+    }
 }
