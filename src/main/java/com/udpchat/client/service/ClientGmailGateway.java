@@ -49,12 +49,25 @@ public class ClientGmailGateway {
     // 1. GỬI THƯ TRỰC TIẾP QUA GMAIL SMTP (Client -> Google)
     // =========================================================================
 
+    public static class SmtpSendResult {
+        private final boolean success;
+        private final String message;
+
+        public SmtpSendResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+    }
+
     /**
      * Gửi email trực tiếp từ Client lên máy chủ Gmail bằng tài khoản cá nhân của Client
      */
-    public CompletableFuture<Boolean> sendDirectViaSmtp(Email email, List<File> localAttachedFiles, Consumer<String> logger) {
+    public CompletableFuture<SmtpSendResult> sendDirectViaSmtp(Email email, List<File> localAttachedFiles, Consumer<String> logger) {
         if (!config.isEnabled() || !config.isConfigured()) {
-            return CompletableFuture.completedFuture(false);
+            return CompletableFuture.completedFuture(new SmtpSendResult(false, "Chưa bật hoặc chưa cấu hình Gmail"));
         }
 
         return CompletableFuture.supplyAsync(() -> {
@@ -99,8 +112,9 @@ public class ClientGmailGateway {
                 }
 
                 if (!hasValidEmailRecipient) {
-                    if (logger != null) logger.accept("[Gmail SMTP Trực tiếp] Bỏ qua: Không có người nhận nào là địa chỉ email hợp lệ (có @)");
-                    return false;
+                    String err = "Không có người nhận nào là địa chỉ email hợp lệ (có chứa ký tự @)";
+                    if (logger != null) logger.accept("[Gmail SMTP Trực tiếp] Bỏ qua: " + err);
+                    return new SmtpSendResult(false, err);
                 }
 
                 msg.setSubject(email.getSubject(), "UTF-8");
@@ -141,12 +155,18 @@ public class ClientGmailGateway {
                 if (logger != null) {
                     logger.accept("[Gmail SMTP Trực tiếp] ✓ Đã gửi trực tiếp tới Gmail thành công! (Tài khoản: " + config.getGmailAddress() + ")");
                 }
-                return true;
+                return new SmtpSendResult(true, "Đã gửi trực tiếp tới Gmail thành công!");
+            } catch (AuthenticationFailedException e) {
+                String err = "Google từ chối mật khẩu (Mã 535). Bạn cần tạo Mật khẩu ứng dụng (App Password) 16 ký tự tại myaccount.google.com/apppasswords thay vì dùng mật khẩu thông thường.";
+                if (logger != null) logger.accept("[Gmail SMTP Trực tiếp] ✗ " + err);
+                return new SmtpSendResult(false, err);
             } catch (Exception e) {
-                if (logger != null) {
-                    logger.accept("[Gmail SMTP Trực tiếp] ✗ Lỗi gửi SMTP: " + e.getMessage());
+                String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                if (err.contains("535") || err.contains("Username and Password not accepted") || err.contains("BadCredentials")) {
+                    err = "Google từ chối mật khẩu (Mã 535). Bạn cần tạo Mật khẩu ứng dụng (App Password) 16 ký tự tại myaccount.google.com/apppasswords thay vì dùng mật khẩu thông thường.";
                 }
-                return false;
+                if (logger != null) logger.accept("[Gmail SMTP Trực tiếp] ✗ Lỗi gửi SMTP: " + err);
+                return new SmtpSendResult(false, err);
             }
         }, executor);
     }
@@ -165,9 +185,61 @@ public class ClientGmailGateway {
         return Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(config.getGmailAddress(), config.getAppPassword());
+                return new PasswordAuthentication(config.getGmailAddress(), config.getCleanAppPassword());
             }
         });
+    }
+
+    public static class ConnectionTestResult {
+        private final boolean success;
+        private final String message;
+
+        public ConnectionTestResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+    }
+
+    /**
+     * Xác thực và kiểm tra kết nối trực tiếp tới Google SMTP
+     */
+    public ConnectionTestResult testConnection(String address, String password) {
+        if (address == null || address.trim().isEmpty() || password == null || password.trim().isEmpty()) {
+            return new ConnectionTestResult(false, "Vui lòng nhập đầy đủ Địa chỉ Gmail và Mật khẩu ứng dụng.");
+        }
+        String cleanAddr = address.trim();
+        String cleanPass = password.replaceAll("\\s+", "").trim();
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", config.getSmtpHost());
+        props.put("mail.smtp.port", String.valueOf(config.getSmtpPort()));
+        props.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
+        props.put("mail.smtp.ssl.trust", config.getSmtpHost());
+        props.put("mail.smtp.connectiontimeout", "8000");
+        props.put("mail.smtp.timeout", "10000");
+
+        Session session = Session.getInstance(props);
+        try (Transport transport = session.getTransport("smtp")) {
+            transport.connect(config.getSmtpHost(), config.getSmtpPort(), cleanAddr, cleanPass);
+            return new ConnectionTestResult(true, "✓ Xác nhận thành công! Kết nối tới máy chủ Google SMTP hoạt động hoàn hảo.");
+        } catch (AuthenticationFailedException e) {
+            return new ConnectionTestResult(false, "✗ Lỗi xác thực (Mã 535): Google từ chối mật khẩu này!\n" +
+                    "Nguyên nhân: Bạn đang nhập mật khẩu đăng nhập thông thường của tài khoản.\n" +
+                    "Cách khắc phục: Bắt buộc phải tạo 'Mật khẩu ứng dụng (App Password)' 16 ký tự tại: myaccount.google.com/apppasswords");
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            if (msg.contains("535") || msg.contains("Username and Password not accepted") || msg.contains("BadCredentials")) {
+                return new ConnectionTestResult(false, "✗ Lỗi xác thực (Mã 535): Google từ chối mật khẩu này!\n" +
+                        "Nguyên nhân: Bạn đang nhập mật khẩu đăng nhập thông thường của tài khoản.\n" +
+                        "Cách khắc phục: Bắt buộc phải tạo 'Mật khẩu ứng dụng (App Password)' 16 ký tự tại: myaccount.google.com/apppasswords");
+            }
+            return new ConnectionTestResult(false, "✗ Không thể kết nối tới Google: " + msg);
+        }
     }
 
     // =========================================================================
@@ -200,7 +272,7 @@ public class ClientGmailGateway {
 
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
-            store.connect(config.getImapHost(), config.getGmailAddress(), config.getAppPassword());
+            store.connect(config.getImapHost(), config.getGmailAddress(), config.getCleanAppPassword());
 
             inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);

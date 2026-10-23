@@ -98,7 +98,12 @@ public class ClientGmailConfig {
     public void setGmailAddress(String gmailAddress) { this.gmailAddress = gmailAddress != null ? gmailAddress.trim() : ""; }
 
     public String getAppPassword() { return appPassword; }
-    public void setAppPassword(String appPassword) { this.appPassword = appPassword != null ? appPassword.trim() : ""; }
+    public String getCleanAppPassword() {
+        return appPassword != null ? appPassword.replaceAll("\\s+", "").trim() : "";
+    }
+    public void setAppPassword(String appPassword) {
+        this.appPassword = appPassword != null ? appPassword.replaceAll("\\s+", "").trim() : "";
+    }
 
     public String getSmtpHost() { return smtpHost; }
     public void setSmtpHost(String smtpHost) { this.smtpHost = smtpHost; }

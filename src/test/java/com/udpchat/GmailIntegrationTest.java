@@ -28,6 +28,7 @@ public class GmailIntegrationTest {
         // Test configuration setters
         config.setGmailAddress("alice@gmail.com");
         config.setAppPassword("abcd efgh ijkl mnop");
+        assertEquals("abcdefghijklmnop", config.getCleanAppPassword());
         config.setEnabled(true);
         config.save(testUsername);
 
@@ -36,7 +37,8 @@ public class GmailIntegrationTest {
         reloaded.load(testUsername);
         assertTrue(reloaded.isEnabled());
         assertEquals("alice@gmail.com", reloaded.getGmailAddress());
-        assertEquals("abcd efgh ijkl mnop", reloaded.getAppPassword());
+        // App password spaces are automatically stripped for safety
+        assertEquals("abcdefghijklmnop", reloaded.getAppPassword());
         assertTrue(reloaded.isConfigured());
 
         // Restore to disabled
@@ -96,10 +98,11 @@ public class GmailIntegrationTest {
 
         Email email = new Email("alice", List.of("bob@gmail.com"), "Tiêu đề test", "Nội dung test");
 
-        CompletableFuture<Boolean> future = gateway.sendDirectViaSmtp(email, Collections.emptyList(), logs::add);
+        CompletableFuture<ClientGmailGateway.SmtpSendResult> future = gateway.sendDirectViaSmtp(email, Collections.emptyList(), logs::add);
         assertNotNull(future);
-        Boolean result = future.get();
-        assertFalse(result, "Khi disabled, sendDirectViaSmtp phải trả về false an toàn mà không gọi mạng");
+        ClientGmailGateway.SmtpSendResult result = future.get();
+        assertFalse(result.isSuccess(), "Khi disabled, sendDirectViaSmtp phải trả về false an toàn mà không gọi mạng");
+        assertEquals("Chưa bật hoặc chưa cấu hình Gmail", result.getMessage());
 
         gateway.shutdown();
     }
