@@ -5,7 +5,10 @@ import com.udpchat.server.network.RequestHandler;
 import com.udpchat.server.network.ServerNetwork;
 import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
+import com.udpchat.server.service.GmailConfig;
+import com.udpchat.server.service.GmailGateway;
 import com.udpchat.server.service.MailService;
+import com.udpchat.shared.model.Email;
 import com.udpchat.shared.util.UDPUtil;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -32,6 +35,15 @@ public class ServerController {
     @FXML private Label statusLabel;
     @FXML private Region statusIndicator;
 
+    // Gmail Gateway Relay Controls
+    @FXML private Region gmailStatusIndicator;
+    @FXML private Label gmailStatusLabel;
+    @FXML private TextField gmailAddressField;
+    @FXML private PasswordField gmailPasswordField;
+    @FXML private Button btnVerifyGmail;
+    @FXML private Button btnToggleGmail;
+    @FXML private Button btnSyncGmail;
+
     @FXML private Label totalEmailsLabel;
     @FXML private Label todayEmailsLabel;
     @FXML private Label attachmentsCountLabel;
@@ -47,9 +59,12 @@ public class ServerController {
     @FXML private Button clearLogButton;
 
     private ServerNetwork network;
+    private RequestHandler requestHandler;
     private AuthService authService;
     private MailService mailService;
     private FileService fileService;
+    private GmailConfig gmailConfig;
+    private GmailGateway gmailGateway;
     private Thread serverThread;
     private Timeline updateTimeline;
 
@@ -65,6 +80,13 @@ public class ServerController {
         authService = new AuthService();
         mailService = new MailService();
         fileService = new FileService();
+
+        gmailConfig = new GmailConfig();
+        gmailAddressField.setText(gmailConfig.getGmailAddress());
+        gmailPasswordField.setText(gmailConfig.getAppPassword());
+        updateGmailUiStatus(gmailConfig.isEnabled() && gmailConfig.isConfigured());
+
+        gmailGateway = new GmailGateway(gmailConfig, this::log);
 
         updateTimeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
             updateOnlineClients();
@@ -85,8 +107,8 @@ public class ServerController {
             return;
         }
 
-        RequestHandler handler = new RequestHandler(authService, mailService, fileService, this::log);
-        network = new ServerNetwork(handler, this::log);
+        requestHandler = new RequestHandler(authService, mailService, fileService, gmailGateway, this::log);
+        network = new ServerNetwork(requestHandler, this::log);
 
         serverThread = new Thread(() -> network.start(port));
         serverThread.setDaemon(true);
@@ -99,12 +121,20 @@ public class ServerController {
         statusIndicator.getStyleClass().remove("status-offline");
         statusIndicator.getStyleClass().add("status-online");
         updateTimeline.play();
+
+        // Khởi động IMAP Polling nếu Gmail Gateway được bật
+        if (gmailConfig.isEnabled() && gmailConfig.isConfigured()) {
+            startGmailImapSync();
+        }
     }
 
     @FXML
     private void onStop() {
         if (network != null) {
             network.stop();
+        }
+        if (gmailGateway != null) {
+            gmailGateway.stopImapPolling();
         }
         updateTimeline.stop();
 
@@ -114,6 +144,140 @@ public class ServerController {
         statusLabel.setText("Đã dừng");
         statusIndicator.getStyleClass().remove("status-online");
         statusIndicator.getStyleClass().add("status-offline");
+    }
+
+    // =========================================================================
+    // GMAIL GATEWAY HANDLERS
+    // =========================================================================
+
+    @FXML
+    private void onVerifyGmail() {
+        String addr = gmailAddressField.getText().trim();
+        String pass = gmailPasswordField.getText().trim();
+        if (addr.isEmpty() || pass.isEmpty()) {
+            log("[Gmail Gateway] ⚠️ Vui lòng nhập địa chỉ Gmail và Mật khẩu ứng dụng trước khi kiểm tra.");
+            return;
+        }
+
+        btnVerifyGmail.setDisable(true);
+        btnVerifyGmail.setText("Đang kiểm tra...");
+        log("[Gmail Gateway] Đang kiểm tra xác thực Google SMTP cho " + addr + "...");
+
+        gmailGateway.testConnection(addr, pass).thenAccept(res -> {
+            Platform.runLater(() -> {
+                btnVerifyGmail.setDisable(false);
+                btnVerifyGmail.setText("🔍 Kiểm tra kết nối");
+                if (res.isSuccess()) {
+                    log("[Gmail Gateway] ✓ XÁC THỰC THÀNH CÔNG! Tài khoản hợp lệ, sẵn sàng chuyển tiếp thư.");
+                } else {
+                    log("[Gmail Gateway] ✗ THẤT BẠI: " + res.getMessage());
+                }
+            });
+        });
+    }
+
+    @FXML
+    private void onToggleGmail() {
+        if (gmailConfig.isEnabled()) {
+            // Tắt tích hợp Gmail
+            gmailConfig.setEnabled(false);
+            gmailConfig.save();
+            if (gmailGateway != null) {
+                gmailGateway.stopImapPolling();
+            }
+            updateGmailUiStatus(false);
+            log("[Gmail Gateway] Đã tắt cổng chuyển tiếp Gmail.");
+        } else {
+            // Bật tích hợp Gmail
+            String addr = gmailAddressField.getText().trim();
+            String pass = gmailPasswordField.getText().trim();
+            if (addr.isEmpty() || pass.isEmpty()) {
+                log("[Gmail Gateway] Lỗi: Vui lòng nhập địa chỉ Gmail và Mật khẩu ứng dụng (App Password).");
+                return;
+            }
+            gmailConfig.setGmailAddress(addr);
+            gmailConfig.setAppPassword(pass);
+            gmailConfig.setEnabled(true);
+            gmailConfig.save();
+            updateGmailUiStatus(true);
+            log("[Gmail Gateway] Đã BẬT cổng chuyển tiếp Gmail cho tài khoản: " + addr);
+
+            if (network != null && network.isRunning()) {
+                startGmailImapSync();
+            }
+        }
+    }
+
+    @FXML
+    private void onSyncGmail() {
+        if (!gmailConfig.isConfigured()) {
+            log("[Gmail Gateway] Lỗi: Chưa cấu hình đầy đủ Gmail và App Password để đồng bộ.");
+            return;
+        }
+        log("[Gmail Gateway] Bắt đầu đồng bộ hòm thư Gmail ngay...");
+        new Thread(() -> {
+            if (gmailGateway != null) {
+                gmailGateway.stopImapPolling();
+                startGmailImapSync();
+            }
+        }, "Manual-Gmail-Sync").start();
+    }
+
+    private void startGmailImapSync() {
+        if (gmailGateway != null) {
+            gmailGateway.startImapPolling(this::handleIncomingGmail);
+        }
+    }
+
+    private void handleIncomingGmail(Email email) {
+        if (email == null) return;
+        Map<String, String> userEmails = authService.getAllUserEmails();
+        Set<String> targetUsers = new HashSet<>();
+
+        // 1. Tìm username nội bộ khớp với email người nhận
+        if (email.getRecipients() != null) {
+            for (String rec : email.getRecipients()) {
+                for (Map.Entry<String, String> entry : userEmails.entrySet()) {
+                    if (rec.equalsIgnoreCase(entry.getValue())) {
+                        targetUsers.add(entry.getKey());
+                    }
+                }
+            }
+        }
+
+        // 2. Tìm nếu người nhận là username trực tiếp
+        if (email.getRecipients() != null) {
+            for (String rec : email.getRecipients()) {
+                if (authService.getUserEmail(rec) != null) {
+                    targetUsers.add(rec);
+                }
+            }
+        }
+
+        // 3. Fallback: Nếu không tìm thấy đích danh, chuyển vào hòm thư của tất cả người dùng hệ thống
+        if (targetUsers.isEmpty()) {
+            targetUsers.addAll(userEmails.keySet());
+        }
+
+        for (String user : targetUsers) {
+            mailService.receiveExternalMail(user, email);
+            log("[Gmail Gateway -> " + user + "] Đã nhận thư '" + email.getSubject() + "' từ " + email.getSender());
+        }
+
+        // Đẩy thông báo UDP tới các client đang online
+        if (network != null && network.getSocket() != null && requestHandler != null) {
+            email.setRecipients(new ArrayList<>(targetUsers));
+            requestHandler.notifyOnlineRecipients(email, network.getSocket());
+        }
+    }
+
+    private void updateGmailUiStatus(boolean active) {
+        Platform.runLater(() -> {
+            gmailStatusLabel.setText(active ? "Đang hoạt động" : "Đã tắt");
+            gmailStatusIndicator.getStyleClass().removeAll("status-online", "status-offline");
+            gmailStatusIndicator.getStyleClass().add(active ? "status-online" : "status-offline");
+            btnToggleGmail.setText(active ? "Tắt Gmail" : "Bật Gmail");
+        });
     }
 
     @FXML
