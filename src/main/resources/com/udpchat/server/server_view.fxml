@@ -43,25 +43,22 @@
         <Button fx:id="stopButton" text="Dừng Server" onAction="#onStop" styleClass="button-danger" minWidth="-Infinity"/>
     </HBox>
 
-    <!-- Gmail Gateway Panel -->
-    <VBox styleClass="card-panel" spacing="10">
-        <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <Label text="🌐 Cổng Chuyển Tiếp Gmail (Gateway Relay)" styleClass="card-title"/>
-            <Region fx:id="gmailStatusIndicator" styleClass="status-indicator, status-offline"/>
-            <Label fx:id="gmailStatusLabel" text="Đã tắt" styleClass="user-status-text"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnVerifyGmail" text="🔍 Kiểm tra kết nối" onAction="#onVerifyGmail" styleClass="button-secondary" minWidth="-Infinity"/>
-            <Button fx:id="btnToggleGmail" text="Bật Gmail" onAction="#onToggleGmail" styleClass="button-primary" minWidth="-Infinity"/>
-            <Button fx:id="btnSyncGmail" text="🔄 Đồng bộ ngay" onAction="#onSyncGmail" styleClass="button-secondary" minWidth="-Infinity"/>
+    <!-- System & Integrations Status Panel -->
+    <HBox styleClass="card-panel" spacing="24" alignment="CENTER_LEFT">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="🗄️ CSDL MySQL:" styleClass="input-label"/>
+            <Region fx:id="dbStatusIndicator" styleClass="status-indicator, status-online" prefWidth="10" prefHeight="10"/>
+            <Label fx:id="dbStatusLabel" text="Đã kết nối (udp_mail_chat)" styleClass="user-status-text"/>
         </HBox>
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <Label text="Địa chỉ Gmail:" styleClass="input-label" minWidth="90"/>
-            <TextField fx:id="gmailAddressField" promptText="admin@gmail.com" HBox.hgrow="ALWAYS" styleClass="form-input"/>
-            <Label text="Mật khẩu ứng dụng (16 ký tự):" styleClass="input-label"/>
-            <PasswordField fx:id="gmailPasswordField" promptText="xxxx xxxx xxxx xxxx" prefWidth="200" styleClass="form-input"/>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="🔑 Google OAuth 2.0:" styleClass="input-label"/>
+            <Region fx:id="oauthStatusIndicator" styleClass="status-indicator" prefWidth="10" prefHeight="10"/>
+            <Label fx:id="oauthStatusLabel" text="Đang kiểm tra..." styleClass="user-status-text"/>
         </HBox>
-    </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnReloadOAuth" text="🔄 Tải lại cấu hình OAuth" onAction="#onReloadOAuth" styleClass="button-secondary" minWidth="-Infinity"/>
+    </HBox>
 
     <!-- Statistics Panel -->
     <HBox styleClass="card-panel" spacing="20" alignment="CENTER_LEFT">
