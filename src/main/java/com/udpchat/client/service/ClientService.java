@@ -24,6 +24,7 @@ public class ClientService {
     private ClientListener listener;
     private Thread listenerThread;
     private String currentUsername;
+    private String currentUserEmail;
 
     @FunctionalInterface
     public interface NewMailConsumer {
@@ -86,8 +87,14 @@ public class ClientService {
     }
 
     public String register(String username, String password) {
+        return register(username, password, null);
+    }
+
+    public String register(String username, String password, String email) {
         try {
-            String request = ProtocolHelper.buildRequest(Command.REGISTER, username, password);
+            String request = (email != null && !email.trim().isEmpty())
+                    ? ProtocolHelper.buildRequest(Command.REGISTER, username, password, email.trim())
+                    : ProtocolHelper.buildRequest(Command.REGISTER, username, password);
             String response = network.sendRequest(request);
             if (response.startsWith("RESPONSE|OK")) {
                 log("Đăng ký thành công tài khoản '" + username + "'");
@@ -111,6 +118,13 @@ public class ClientService {
 
             if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
                 currentUsername = username;
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER, -1);
+                if (parts.length >= 3 && parts[2] != null && !parts[2].isEmpty()) {
+                    currentUserEmail = parts[2].trim();
+                } else {
+                    currentUserEmail = null;
+                }
+
                 listenerThread = new Thread(listener);
                 listenerThread.setDaemon(true);
                 listenerThread.start();
@@ -413,6 +427,116 @@ public class ClientService {
 
     public int getServerPort() {
         return serverPort;
+    }
+
+    public String getCurrentUserEmail() {
+        return currentUserEmail;
+    }
+
+    public void setCurrentUserEmail(String email) {
+        this.currentUserEmail = email;
+    }
+
+    /**
+     * Yêu cầu máy chủ cấp URL đăng nhập Google OAuth 2.0
+     */
+    public String requestOAuthUrl(String redirectUri) {
+        if (!isLoggedIn()) return null;
+        try {
+            String request = ProtocolHelper.buildOAuthStartRequest(redirectUri);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER, -1);
+                return parts.length >= 3 ? parts[2] : null;
+            } else {
+                log("Không thể tạo URL OAuth: " + response);
+            }
+        } catch (Exception e) {
+            log("Lỗi requestOAuthUrl: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Gửi mã Authorization Code lên máy chủ để đổi Token và liên kết tài khoản
+     */
+    public String sendOAuthCallback(String authCode, String redirectUri) {
+        if (!isLoggedIn()) return "Chưa đăng nhập";
+        try {
+            String request = ProtocolHelper.buildOAuthCallbackRequest(authCode, redirectUri);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER, -1);
+                String email = parts.length >= 3 ? parts[2] : "";
+                currentUserEmail = email;
+                log("Đã liên kết Gmail thành công: " + email);
+                return "OK|" + email;
+            } else {
+                log("Lỗi liên kết OAuth: " + response);
+                return response;
+            }
+        } catch (Exception e) {
+            log("Lỗi sendOAuthCallback: " + e.getMessage());
+            return "ERROR|" + e.getMessage();
+        }
+    }
+
+    /**
+     * Kiểm tra trạng thái liên kết OAuth 2.0 của người dùng hiện tại
+     */
+    public String checkOAuthStatus() {
+        if (!isLoggedIn()) return "NOT_LINKED";
+        try {
+            String request = ProtocolHelper.buildOAuthStatusRequest();
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER, -1);
+                String status = parts.length >= 3 ? parts[2] : "NOT_LINKED";
+                if ("LINKED".equals(status) && parts.length >= 4) {
+                    currentUserEmail = parts[3];
+                }
+                return status;
+            }
+        } catch (Exception ignored) {}
+        return "NOT_LINKED";
+    }
+
+    /**
+     * Cập nhật địa chỉ email thủ công
+     */
+    public boolean setUserEmail(String email) {
+        if (!isLoggedIn()) return false;
+        try {
+            String request = ProtocolHelper.buildSetEmailRequest(email);
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                currentUserEmail = email;
+                return true;
+            }
+        } catch (Exception e) {
+            log("Lỗi setUserEmail: " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Lấy địa chỉ email đã lưu trên máy chủ
+     */
+    public String fetchUserEmail() {
+        if (!isLoggedIn()) return null;
+        try {
+            String request = ProtocolHelper.buildGetEmailRequest();
+            String response = network.sendRequest(request);
+            if (response.startsWith(Command.RESPONSE.name() + UDPConstants.DELIMITER + "OK")) {
+                String[] parts = response.split("\\" + UDPConstants.DELIMITER, -1);
+                String em = parts.length >= 3 ? parts[2] : null;
+                if (em != null && !em.isEmpty()) {
+                    currentUserEmail = em;
+                }
+                return em;
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     public void close() {
