@@ -3,9 +3,9 @@ package com.udpchat.server.network;
 import com.udpchat.server.model.ClientSession;
 import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
-import com.udpchat.server.service.GmailGateway;
 import com.udpchat.server.service.MailService;
 import com.udpchat.server.service.OAuthService;
+import com.udpchat.server.service.SmtpDeliveryService;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
 import com.udpchat.shared.protocol.Command;
@@ -28,18 +28,20 @@ public class RequestHandler {
     private final AuthService authService;
     private final MailService mailService;
     private final FileService fileService;
-    private final GmailGateway gmailGateway;
+    private final OAuthService oAuthService;
+    private final SmtpDeliveryService smtpDeliveryService;
     private final Consumer<String> logger;
 
     public RequestHandler(AuthService authService, MailService mailService, FileService fileService, Consumer<String> logger) {
-        this(authService, mailService, fileService, null, logger);
+        this(authService, mailService, fileService, null, null, logger);
     }
 
-    public RequestHandler(AuthService authService, MailService mailService, FileService fileService, GmailGateway gmailGateway, Consumer<String> logger) {
+    public RequestHandler(AuthService authService, MailService mailService, FileService fileService, OAuthService oAuthService, SmtpDeliveryService smtpDeliveryService, Consumer<String> logger) {
         this.authService = authService;
         this.mailService = mailService;
         this.fileService = fileService;
-        this.gmailGateway = gmailGateway;
+        this.oAuthService = oAuthService;
+        this.smtpDeliveryService = smtpDeliveryService;
         this.logger = logger != null ? logger : System.out::println;
     }
 
@@ -87,8 +89,8 @@ public class RequestHandler {
                 case OAUTH_START: {
                     if (authService.isLoggedIn(sessionKey)) {
                         String redirectUri = params.length > 0 ? params[0] : "http://127.0.0.1:8888/callback";
-                        if (gmailGateway != null && gmailGateway.getOAuthService() != null && gmailGateway.getOAuthService().getConfig().isConfigured()) {
-                            String authUrl = gmailGateway.getOAuthService().getConfig().buildAuthUrl(redirectUri, authService.getUsername(sessionKey));
+                        if (oAuthService != null && oAuthService.getConfig().isConfigured()) {
+                            String authUrl = oAuthService.getConfig().buildAuthUrl(redirectUri, authService.getUsername(sessionKey));
                             UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", authUrl), senderAddr, senderPort);
                         } else {
                             UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Máy chủ chưa cấu hình Client ID / Secret trong client_secret.json"), senderAddr, senderPort);
@@ -103,10 +105,10 @@ public class RequestHandler {
                         String user = authService.getUsername(sessionKey);
                         String authCode = params.length > 0 ? params[0] : "";
                         String redirectUri = params.length > 1 ? params[1] : "";
-                        if (gmailGateway != null && gmailGateway.getOAuthService() != null) {
-                            OAuthService.TokenResult result = gmailGateway.getOAuthService().exchangeCode(authCode, redirectUri);
+                        if (oAuthService != null) {
+                            OAuthService.TokenResult result = oAuthService.exchangeCode(authCode, redirectUri);
                             if (result.success) {
-                                gmailGateway.getOAuthService().saveTokens(user, result.email, result.accessToken, result.refreshToken, result.expiresIn);
+                                oAuthService.saveTokens(user, result.email, result.accessToken, result.refreshToken, result.expiresIn);
                                 logger.accept("[OAuth 2.0] Người dùng '" + user + "' đã liên kết thành công với Gmail: " + result.email);
                                 UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", result.email), senderAddr, senderPort);
                             } else {
@@ -124,8 +126,8 @@ public class RequestHandler {
                 case OAUTH_STATUS: {
                     if (authService.isLoggedIn(sessionKey)) {
                         String user = authService.getUsername(sessionKey);
-                        if (gmailGateway != null && gmailGateway.getOAuthService() != null && gmailGateway.getOAuthService().isLinked(user)) {
-                            String email = gmailGateway.getOAuthService().getLinkedEmail(user);
+                        if (oAuthService != null && oAuthService.isLinked(user)) {
+                            String email = oAuthService.getLinkedEmail(user);
                             UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", "LINKED", email != null ? email : ""), senderAddr, senderPort);
                         } else {
                             String email = authService.getUserEmail(user);
@@ -179,10 +181,10 @@ public class RequestHandler {
                                 // Push NEW_MAIL tới tất cả người nhận đang online
                                 notifyOnlineRecipients(email, serverSocket);
 
-                                // Chuyển tiếp ra Gmail thật qua SMTP (Ưu tiên XOAUTH2 của sender)
-                                if (gmailGateway != null) {
+                                // Chuyển tiếp ra Gmail thật qua SMTP (XOAUTH2 của sender)
+                                if (smtpDeliveryService != null) {
                                     Map<String, String> userEmails = authService.getAllUserEmails();
-                                    gmailGateway.sendViaSmtp(email, userEmails);
+                                    smtpDeliveryService.sendViaSmtp(email, userEmails);
                                 }
                             } else {
                                 UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Lỗi khi lưu trữ thư"), senderAddr, senderPort);
