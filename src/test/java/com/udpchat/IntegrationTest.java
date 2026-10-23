@@ -44,8 +44,20 @@ public class IntegrationTest {
         // Xóa sạch server-data để test từ đầu
         deleteDirectory(new File("server-data"));
 
+        try {
+            com.udpchat.server.database.DatabaseManager.initialize();
+            try (java.sql.Connection conn = com.udpchat.server.database.DatabaseManager.getConnection();
+                 java.sql.Statement stmt = conn.createStatement()) {
+                stmt.execute("DELETE FROM email_recipients");
+                stmt.execute("DELETE FROM attachments");
+                stmt.execute("DELETE FROM emails");
+                stmt.execute("DELETE FROM oauth_tokens");
+                stmt.execute("DELETE FROM users WHERE username IN ('alice', 'bob')");
+            }
+        } catch (Exception ignored) {}
+
         authService = new AuthService();
-        mailService = new MailService();
+        mailService = new MailService(authService);
         fileService = new FileService();
 
         RequestHandler handler = new RequestHandler(authService, mailService, fileService, System.out::println);
@@ -81,15 +93,20 @@ public class IntegrationTest {
         String resp = clientAlice.register("alice", "secret123");
         assertTrue(resp.contains("OK"), "Alice register should succeed: " + resp);
 
-        File userFile = new File("server-data/users/alice.txt");
-        assertTrue(userFile.exists(), "User file for alice should exist");
-        try {
-            String content = java.nio.file.Files.readString(userFile.toPath(), java.nio.charset.StandardCharsets.UTF_8);
-            assertTrue(content.contains("password=secret123"), "User file should contain password");
-            assertTrue(content.contains("ip="), "User file should contain client ip");
-        } catch (java.io.IOException e) {
-            fail("Failed to read user file: " + e.getMessage());
+        // Kiểm tra trong CSDL MySQL
+        String checkPass = null;
+        try (java.sql.Connection conn = com.udpchat.server.database.DatabaseManager.getConnection();
+             java.sql.PreparedStatement stmt = conn.prepareStatement("SELECT password_hash FROM users WHERE username = ?")) {
+            stmt.setString(1, "alice");
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    checkPass = rs.getString("password_hash");
+                }
+            }
+        } catch (Exception e) {
+            fail("Database check failed: " + e.getMessage());
         }
+        assertEquals("secret123", checkPass, "User password in MySQL should match");
 
         // Đăng ký trùng lặp phải thất bại
         String dupResp = clientAlice.register("alice", "secret123");
@@ -335,6 +352,36 @@ public class IntegrationTest {
         assertFalse(clientBob.isLoggedIn());
 
         assertEquals(0, authService.getOnlineCount(), "Online sessions should be 0 after logout");
+    }
+
+    @Test
+    @Order(12)
+    public void testEmailConfigurationAndDualDeliveryResolution() {
+        // Đăng nhập lại
+        clientAlice.login("alice", "secret123");
+        clientBob.login("bob", "pass456");
+
+        // Alice và Bob cấu hình email thật
+        boolean aliceEmailSet = clientAlice.setUserEmail("alice_real@gmail.com");
+        assertTrue(aliceEmailSet, "Alice setting email should succeed");
+        assertEquals("alice_real@gmail.com", clientAlice.fetchUserEmail());
+
+        boolean bobEmailSet = clientBob.setUserEmail("bob_real@gmail.com");
+        assertTrue(bobEmailSet, "Bob setting email should succeed");
+        assertEquals("bob_real@gmail.com", clientBob.fetchUserEmail());
+
+        // Alice gửi thư tới địa chỉ email của Bob thay vì username: "bob_real@gmail.com"
+        Email emailToGmail = new Email("alice", List.of("bob_real@gmail.com"), "Gửi tới Gmail của Bob", "Nội dung gửi tới địa chỉ Gmail.");
+        boolean sent = clientAlice.sendMail(emailToGmail);
+        assertTrue(sent, "Sending mail to Bob's Gmail address should succeed");
+
+        // Kiểm tra Bob nhận được trong Inbox app của mình
+        ClientService.MailListResult bobInbox = clientBob.listMails(MailFolder.INBOX, 1, 10);
+        boolean found = bobInbox.emails.stream().anyMatch(e -> "Gửi tới Gmail của Bob".equals(e.getSubject()));
+        assertTrue(found, "Bob should find the email in app Inbox even though addressed to bob_real@gmail.com");
+
+        clientAlice.logout();
+        clientBob.logout();
     }
 
     private static void deleteDirectory(File dir) {
