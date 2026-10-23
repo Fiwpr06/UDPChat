@@ -77,8 +77,15 @@ public class ServerController {
         statusLabel.setText("Đã dừng");
         statusIndicator.getStyleClass().add("status-offline");
 
+        try {
+            com.udpchat.server.database.DatabaseManager.initialize();
+            log("[MySQL] Đã kết nối cơ sở dữ liệu '" + com.udpchat.server.database.DatabaseManager.getCurrentDb() + "' thành công.");
+        } catch (Exception e) {
+            log("[MySQL] Cảnh báo kết nối CSDL: " + e.getMessage());
+        }
+
         authService = new AuthService();
-        mailService = new MailService();
+        mailService = new MailService(authService);
         fileService = new FileService();
 
         gmailConfig = new GmailConfig();
@@ -86,7 +93,15 @@ public class ServerController {
         gmailPasswordField.setText(gmailConfig.getAppPassword());
         updateGmailUiStatus(gmailConfig.isEnabled() && gmailConfig.isConfigured());
 
-        gmailGateway = new GmailGateway(gmailConfig, this::log);
+        com.udpchat.server.service.OAuthConfig oAuthConfig = com.udpchat.server.service.OAuthConfig.load();
+        com.udpchat.server.service.OAuthService oAuthService = new com.udpchat.server.service.OAuthService(oAuthConfig, authService);
+        if (oAuthConfig.isConfigured()) {
+            log("[OAuth 2.0] Đã nạp thành công Google Client ID.");
+        } else {
+            log("[OAuth 2.0] Lưu ý: Hãy cấu hình client_secret.json để bật đăng nhập Gmail qua browser.");
+        }
+
+        gmailGateway = new GmailGateway(gmailConfig, oAuthService, this::log);
 
         updateTimeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
             updateOnlineClients();
