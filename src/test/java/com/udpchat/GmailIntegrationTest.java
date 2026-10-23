@@ -1,13 +1,12 @@
 package com.udpchat;
 
 import com.udpchat.server.service.AuthService;
-import com.udpchat.server.service.GmailConfig;
-import com.udpchat.server.service.GmailGateway;
+import com.udpchat.server.service.OAuthConfig;
+import com.udpchat.server.service.OAuthService;
+import com.udpchat.server.service.SmtpDeliveryService;
 import com.udpchat.shared.model.Email;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -16,36 +15,19 @@ import static org.junit.jupiter.api.Assertions.*;
 public class GmailIntegrationTest {
 
     @Test
-    public void testServerGmailConfigDefaultsAndSaveLoad() {
-        GmailConfig config = new GmailConfig();
-        assertNotNull(config.getSmtpHost());
-        assertEquals(587, config.getSmtpPort());
-        assertNotNull(config.getImapHost());
-        assertEquals(993, config.getImapPort());
+    public void testOAuthConfigAndAuthUrl() {
+        OAuthConfig config = new OAuthConfig();
+        config.setClientId("test-client-id-12345");
+        config.setClientSecret("test-secret-67890");
+        assertTrue(config.isConfigured());
+        assertEquals("test-client-id-12345", config.getClientId());
+        assertEquals("test-secret-67890", config.getClientSecret());
 
-        // Test configuration setters and clean app password
-        config.setGmailAddress("admin@gmail.com");
-        config.setAppPassword("abcd efgh ijkl mnop");
-        assertEquals("abcdefghijklmnop", config.getCleanAppPassword());
-        config.setEnabled(true);
-        config.save();
-
-        // Load again in a fresh instance
-        GmailConfig reloaded = new GmailConfig();
-        reloaded.load();
-        assertTrue(reloaded.isEnabled());
-        assertEquals("admin@gmail.com", reloaded.getGmailAddress());
-        // App password spaces are automatically stripped for safety
-        assertEquals("abcdefghijklmnop", reloaded.getAppPassword());
-        assertTrue(reloaded.isConfigured());
-
-        // Restore to disabled for safety
-        reloaded.setEnabled(false);
-        reloaded.save();
-
-        GmailConfig verifyDisabled = new GmailConfig();
-        verifyDisabled.load();
-        assertFalse(verifyDisabled.isEnabled());
+        String authUrl = config.buildAuthUrl("http://127.0.0.1:8888/callback", "test_user");
+        assertNotNull(authUrl);
+        assertTrue(authUrl.contains("test-client-id-12345"));
+        assertTrue(authUrl.contains("http%3A%2F%2F127.0.0.1%3A8888%2Fcallback"));
+        assertTrue(authUrl.contains("response_type=code"));
     }
 
     @Test
@@ -80,20 +62,6 @@ public class GmailIntegrationTest {
     }
 
     @Test
-    public void testOAuthConfigAndAuthUrl() {
-        com.udpchat.server.service.OAuthConfig config = new com.udpchat.server.service.OAuthConfig();
-        config.setClientId("test-client-id-12345");
-        config.setClientSecret("test-secret-67890");
-        assertTrue(config.isConfigured());
-
-        String authUrl = config.buildAuthUrl("http://127.0.0.1:8888/callback", "test_user");
-        assertNotNull(authUrl);
-        assertTrue(authUrl.contains("test-client-id-12345"));
-        assertTrue(authUrl.contains("http%3A%2F%2F127.0.0.1%3A8888%2Fcallback"));
-        assertTrue(authUrl.contains("response_type=code"));
-    }
-
-    @Test
     public void testEmailGmailMessageId() {
         Email email = new Email();
         assertNull(email.getGmailMessageId());
@@ -103,24 +71,32 @@ public class GmailIntegrationTest {
     }
 
     @Test
-    public void testServerGmailGatewayDisabledBypass() throws Exception {
-        GmailConfig config = new GmailConfig();
-        config.setEnabled(false);
+    public void testSmtpDeliveryServiceUnlinkedSafeBypass() throws Exception {
+        AuthService authService = new AuthService();
+        OAuthConfig config = new OAuthConfig();
+        OAuthService oAuthService = new OAuthService(config, authService);
 
         List<String> logs = new ArrayList<>();
-        GmailGateway gateway = new GmailGateway(config, logs::add);
+        SmtpDeliveryService deliveryService = new SmtpDeliveryService(oAuthService, logs::add);
 
-        Email email = new Email("alice", List.of("bob@gmail.com"), "Tiêu đề test", "Nội dung test");
+        Email email = new Email("unlinked_user", List.of("bob@gmail.com"), "Tiêu đề test", "Nội dung test");
 
-        CompletableFuture<Boolean> future = gateway.sendViaSmtp(email, Collections.emptyMap());
+        CompletableFuture<Boolean> future = deliveryService.sendViaSmtp(email, Collections.emptyMap());
         assertNotNull(future);
         Boolean result = future.get();
-        assertFalse(result, "Khi disabled, sendViaSmtp phải trả về false an toàn mà không gọi mạng");
+        assertFalse(result, "Người gửi chưa liên kết OAuth phải được bypass an toàn và trả về false mà không gọi mạng");
 
-        // Test validation of testConnection
-        GmailGateway.ConnectionTestResult resEmpty = gateway.testConnection("", "").get();
-        assertFalse(resEmpty.isSuccess());
+        assertTrue(logs.stream().anyMatch(l -> l.contains("chưa liên kết Google OAuth")));
 
-        gateway.shutdown();
+        deliveryService.shutdown();
+    }
+
+    @Test
+    public void testSmtpDeliveryServiceNullEmailSafeBypass() throws Exception {
+        SmtpDeliveryService deliveryService = new SmtpDeliveryService(null, null);
+        CompletableFuture<Boolean> future = deliveryService.sendViaSmtp(null, Collections.emptyMap());
+        assertNotNull(future);
+        assertFalse(future.get());
+        deliveryService.shutdown();
     }
 }
