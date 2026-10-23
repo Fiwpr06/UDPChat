@@ -1,13 +1,11 @@
 package com.udpchat;
 
+import com.udpchat.client.service.ClientGmailConfig;
+import com.udpchat.client.service.ClientGmailGateway;
 import com.udpchat.server.service.AuthService;
-import com.udpchat.server.service.GmailConfig;
-import com.udpchat.server.service.GmailGateway;
-import com.udpchat.shared.model.Attachment;
 import com.udpchat.shared.model.Email;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -18,30 +16,41 @@ import static org.junit.jupiter.api.Assertions.*;
 public class GmailIntegrationTest {
 
     @Test
-    public void testGmailConfigDefaultsAndSaveLoad() {
-        GmailConfig config = new GmailConfig();
+    public void testClientGmailConfigDefaultsAndSaveLoad() {
+        ClientGmailConfig config = new ClientGmailConfig();
         assertNotNull(config.getSmtpHost());
         assertEquals(587, config.getSmtpPort());
         assertNotNull(config.getImapHost());
         assertEquals(993, config.getImapPort());
 
+        String testUsername = "alice_test_" + System.currentTimeMillis();
+
         // Test configuration setters
-        config.setGmailAddress("testuser@gmail.com");
+        config.setGmailAddress("alice@gmail.com");
         config.setAppPassword("abcd efgh ijkl mnop");
         config.setEnabled(true);
-        config.save();
+        config.save(testUsername);
 
         // Load again in a fresh instance
-        GmailConfig reloaded = new GmailConfig();
+        ClientGmailConfig reloaded = new ClientGmailConfig();
+        reloaded.load(testUsername);
         assertTrue(reloaded.isEnabled());
-        assertEquals("testuser@gmail.com", reloaded.getGmailAddress());
+        assertEquals("alice@gmail.com", reloaded.getGmailAddress());
         assertEquals("abcd efgh ijkl mnop", reloaded.getAppPassword());
         assertTrue(reloaded.isConfigured());
 
-        // Restore to disabled for safety
+        // Restore to disabled
         reloaded.setEnabled(false);
-        reloaded.save();
-        assertFalse(new GmailConfig().isEnabled());
+        reloaded.save(testUsername);
+
+        ClientGmailConfig verifyDisabled = new ClientGmailConfig();
+        verifyDisabled.load(testUsername);
+        assertFalse(verifyDisabled.isEnabled());
+
+        // Cleanup
+        try {
+            Files.deleteIfExists(Path.of("client-cache", "gmail-config-" + testUsername + ".properties"));
+        } catch (Exception ignored) {}
     }
 
     @Test
@@ -78,21 +87,19 @@ public class GmailIntegrationTest {
     }
 
     @Test
-    public void testGmailGatewayDisabledBypass() throws Exception {
-        GmailConfig config = new GmailConfig();
+    public void testClientGmailGatewayDisabledBypass() throws Exception {
+        ClientGmailConfig config = new ClientGmailConfig();
         config.setEnabled(false);
 
         List<String> logs = new ArrayList<>();
-        GmailGateway gateway = new GmailGateway(config, logs::add);
+        ClientGmailGateway gateway = new ClientGmailGateway(config);
 
         Email email = new Email("alice", List.of("bob@gmail.com"), "Tiêu đề test", "Nội dung test");
-        Map<String, String> userEmails = Map.of("bob", "bob@gmail.com");
 
-        // Khi config disabled, sendViaSmtp phải hoàn thành ngay lập tức và trả về false mà không gọi network
-        CompletableFuture<Boolean> future = gateway.sendViaSmtp(email, userEmails);
+        CompletableFuture<Boolean> future = gateway.sendDirectViaSmtp(email, Collections.emptyList(), logs::add);
         assertNotNull(future);
         Boolean result = future.get();
-        assertFalse(result, "Khi disabled, sendViaSmtp phải trả về false an toàn mà không throw exception");
+        assertFalse(result, "Khi disabled, sendDirectViaSmtp phải trả về false an toàn mà không gọi mạng");
 
         gateway.shutdown();
     }

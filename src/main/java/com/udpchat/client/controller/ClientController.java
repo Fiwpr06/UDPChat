@@ -1,5 +1,7 @@
 package com.udpchat.client.controller;
 
+import com.udpchat.client.service.ClientGmailConfig;
+import com.udpchat.client.service.ClientGmailGateway;
 import com.udpchat.client.service.ClientService;
 import com.udpchat.shared.model.Attachment;
 import com.udpchat.shared.model.Email;
@@ -112,8 +114,21 @@ public class ClientController {
     @FXML private Button btnAttachFile;
     @FXML private Button btnSaveDraftAction;
 
+    // GMAIL DIRECT (CLIENT)
+    @FXML private Button btnOpenGmailSettings;
+    @FXML private Button btnSyncGmailDirect;
+    @FXML private VBox gmailSettingsOverlay;
+    @FXML private Region clientGmailStatusIndicator;
+    @FXML private Label clientGmailStatusLabel;
+    @FXML private TextField clientGmailAddressField;
+    @FXML private PasswordField clientGmailPasswordField;
+    @FXML private Button btnSaveGmailSettings;
+    @FXML private Button btnDisableGmailSettings;
+
     // STATE
     private ClientService service;
+    private ClientGmailConfig gmailConfig;
+    private ClientGmailGateway gmailGateway;
     private boolean isLoginMode = true;
     private MailFolder currentFolder = MailFolder.INBOX;
     private int currentPage = 1;
@@ -249,6 +264,7 @@ public class ClientController {
                     if (isLoginMode) {
                         currentUserBadge.setText(username);
                         userEmailDisplayLabel.setText(username + "@udpmail");
+                        initClientGmail(username);
                         showMainMailScreen();
                         showMailListView();
                         loadMails(MailFolder.INBOX, 1);
@@ -915,6 +931,11 @@ public class ClientController {
 
             boolean sent = service.sendMail(email);
 
+            // Gửi trực tiếp từ Client ra Gmail SMTP (Không qua Server trung gian)
+            if (gmailConfig != null && gmailConfig.isEnabled() && gmailConfig.isConfigured() && gmailGateway != null) {
+                gmailGateway.sendDirectViaSmtp(email, new ArrayList<>(composeAttachedFiles), this::appendLog);
+            }
+
             Platform.runLater(() -> {
                 btnSendMailAction.setDisable(false);
                 composeUploadProgress.setVisible(false);
@@ -1123,6 +1144,123 @@ public class ClientController {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    // =========================================================================
+    // GMAIL TRỰC TIẾP (SMTP & IMAP PHÍA CLIENT)
+    // =========================================================================
+
+    private void initClientGmail(String username) {
+        if (gmailConfig == null) {
+            gmailConfig = new ClientGmailConfig();
+        }
+        gmailConfig.load(username);
+        gmailGateway = new ClientGmailGateway(gmailConfig);
+        updateClientGmailUi();
+    }
+
+    private void updateClientGmailUi() {
+        if (clientGmailStatusLabel == null) return;
+        boolean active = gmailConfig != null && gmailConfig.isEnabled() && gmailConfig.isConfigured();
+        Platform.runLater(() -> {
+            clientGmailStatusLabel.setText(active ? "Đang bật" : "Đã tắt");
+            clientGmailStatusIndicator.getStyleClass().removeAll("status-online", "status-offline");
+            clientGmailStatusIndicator.getStyleClass().add(active ? "status-online" : "status-offline");
+            if (btnSaveGmailSettings != null) {
+                btnSaveGmailSettings.setText(active ? "Cập nhật Gmail" : "Bật Gmail");
+            }
+        });
+    }
+
+    @FXML
+    private void onOpenGmailSettings() {
+        if (gmailConfig != null) {
+            clientGmailAddressField.setText(gmailConfig.getGmailAddress());
+            clientGmailPasswordField.setText(gmailConfig.getAppPassword());
+        }
+        updateClientGmailUi();
+        gmailSettingsOverlay.setVisible(true);
+        gmailSettingsOverlay.setManaged(true);
+    }
+
+    @FXML
+    private void onCloseGmailSettings() {
+        gmailSettingsOverlay.setVisible(false);
+        gmailSettingsOverlay.setManaged(false);
+    }
+
+    @FXML
+    private void onSaveClientGmailSettings() {
+        String addr = clientGmailAddressField.getText().trim();
+        String pass = clientGmailPasswordField.getText().trim();
+
+        if (addr.isEmpty() || pass.isEmpty()) {
+            showAlert("Thiếu thông tin", "Vui lòng nhập đầy đủ địa chỉ Gmail và Mật khẩu ứng dụng (App Password).");
+            return;
+        }
+
+        if (gmailConfig == null) {
+            gmailConfig = new ClientGmailConfig();
+        }
+        gmailConfig.setGmailAddress(addr);
+        gmailConfig.setAppPassword(pass);
+        gmailConfig.setEnabled(true);
+        gmailConfig.save(service.getCurrentUsername());
+
+        if (gmailGateway == null) {
+            gmailGateway = new ClientGmailGateway(gmailConfig);
+        }
+
+        updateClientGmailUi();
+        onCloseGmailSettings();
+        appendLog("[Gmail] Đã bật và lưu cấu hình Gmail trực tiếp cho '" + service.getCurrentUsername() + "' (" + addr + ")");
+    }
+
+    @FXML
+    private void onDisableClientGmailSettings() {
+        if (gmailConfig != null) {
+            gmailConfig.setEnabled(false);
+            gmailConfig.save(service.getCurrentUsername());
+            updateClientGmailUi();
+            onCloseGmailSettings();
+            appendLog("[Gmail] Đã tắt tích hợp Gmail trực tiếp.");
+        }
+    }
+
+    @FXML
+    private void onSyncGmailDirect() {
+        if (gmailConfig == null || !gmailConfig.isEnabled() || !gmailConfig.isConfigured()) {
+            showAlert("Chưa cấu hình Gmail", "Vui lòng mở '⚙ Cài đặt Gmail' ở cột bên trái và nhập tài khoản trước khi đồng bộ.");
+            return;
+        }
+
+        btnSyncGmailDirect.setDisable(true);
+        appendLog("[Gmail IMAP] Bắt đầu đồng bộ thư mới từ Gmail...");
+
+        new Thread(() -> {
+            try {
+                List<Email> unreadMails = gmailGateway.fetchUnreadViaImap(this::appendLog);
+                for (Email m : unreadMails) {
+                    // Lưu bản sao vào database của mình qua UDP
+                    service.sendMail(m);
+                }
+
+                Platform.runLater(() -> {
+                    btnSyncGmailDirect.setDisable(false);
+                    if (!unreadMails.isEmpty()) {
+                        appendLog("[Gmail IMAP] Đã kéo " + unreadMails.size() + " thư mới về database và hộp thư!");
+                        onRefreshCurrentFolder();
+                    } else {
+                        appendLog("[Gmail IMAP] Không có thư mới nào trên hộp thư Gmail.");
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    btnSyncGmailDirect.setDisable(false);
+                    appendLog("[Gmail IMAP] Lỗi đồng bộ: " + e.getMessage());
+                });
+            }
+        }, "Client-Gmail-Sync-Thread").start();
     }
 
     public ClientService getService() {

@@ -64,27 +64,6 @@
         </HBox>
     </HBox>
 
-    <!-- Gmail Integration Panel -->
-    <VBox styleClass="card-panel" spacing="10">
-        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="📧 TÍCH HỢP GMAIL THẬT (SMTP / IMAP)" styleClass="card-title"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
-                <Region fx:id="gmailStatusIndicator" styleClass="status-indicator, status-offline" prefWidth="10" prefHeight="10"/>
-                <Label fx:id="gmailStatusLabel" text="Đã tắt" styleClass="status-badge-text"/>
-            </HBox>
-        </HBox>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="Địa chỉ Gmail:" styleClass="input-label"/>
-            <TextField fx:id="gmailAddressField" promptText="ten_tai_khoan@gmail.com" prefWidth="220" styleClass="form-input"/>
-            <Label text="App Password:" styleClass="input-label"/>
-            <PasswordField fx:id="gmailPasswordField" promptText="16 ký tự" prefWidth="160" styleClass="form-input"/>
-            <Button fx:id="btnToggleGmail" text="Bật Gmail" onAction="#onToggleGmail" styleClass="button-primary" minWidth="-Infinity"/>
-            <Button fx:id="btnSyncGmail" text="🔄 Đồng bộ ngay" onAction="#onSyncGmail" styleClass="button-secondary" minWidth="-Infinity"/>
-        </HBox>
-    </VBox>
-
     <!-- Online Clients -->
     <VBox styleClass="card-panel" spacing="8">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>

@@ -221,6 +221,7 @@
 
                 <!-- Bottom Controls -->
                 <VBox spacing="6">
+                    <Button fx:id="btnOpenGmailSettings" text="⚙ Cài đặt Gmail" onAction="#onOpenGmailSettings" styleClass="button-secondary" maxWidth="Infinity"/>
                     <Button fx:id="btnToggleLog" text="Nhật ký UDP" onAction="#onToggleLogDrawer" styleClass="button-secondary" maxWidth="Infinity"/>
                     <Button fx:id="btnLogout" text="Đăng xuất" onAction="#onLogout" styleClass="button-danger" maxWidth="Infinity"/>
                 </VBox>
@@ -238,6 +239,7 @@
                     <!-- Mail List Toolbar -->
                     <HBox alignment="CENTER_LEFT" spacing="12" styleClass="mail-toolbar">
                         <Button text="Làm mới" onAction="#onRefreshCurrentFolder" styleClass="button-secondary" minWidth="-Infinity"/>
+                        <Button fx:id="btnSyncGmailDirect" text="🔄 Đồng bộ Gmail" onAction="#onSyncGmailDirect" styleClass="button-secondary" minWidth="-Infinity"/>
                         <Separator orientation="VERTICAL"/>
                         <Label fx:id="currentFolderTitle" text="Hộp thư đến" styleClass="card-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
@@ -394,6 +396,48 @@
                 <Button fx:id="btnSaveDraftAction" text="Lưu nháp" onAction="#onSaveDraft" styleClass="button-secondary" minWidth="-Infinity"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button text="Hủy" onAction="#onCloseCompose" styleClass="button-danger" minWidth="-Infinity"/>
+            </HBox>
+        </VBox>
+    </VBox>
+
+    <!-- FLOATING GMAIL DIRECT SETTINGS MODAL -->
+    <VBox fx:id="gmailSettingsOverlay" alignment="CENTER" spacing="0" visible="false" managed="false"
+          style="-fx-background-color: rgba(0, 0, 0, 0.65);">
+        <VBox maxWidth="520" spacing="16" styleClass="card-panel, entrance-card" style="-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 20, 0, 0, 6);">
+            <padding><Insets top="20" right="24" bottom="20" left="24"/></padding>
+
+            <!-- Modal Header -->
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <Label text="⚙" styleClass="brand-icon-badge"/>
+                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                    <Label text="CÀI ĐẶT GMAIL TRỰC TIẾP (SMTP &amp; IMAP)" styleClass="card-title"/>
+                    <Label text="Gửi thẳng ra Gmail thật &amp; lưu bản sao vào database của mình" styleClass="caption-muted"/>
+                </VBox>
+                <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
+                    <Region fx:id="clientGmailStatusIndicator" styleClass="status-indicator, status-offline" prefWidth="10" prefHeight="10"/>
+                    <Label fx:id="clientGmailStatusLabel" text="Đã tắt" styleClass="status-badge-text"/>
+                </HBox>
+            </HBox>
+
+            <Separator styleClass="panel-separator"/>
+
+            <VBox spacing="12">
+                <VBox spacing="6">
+                    <Label text="Địa chỉ Gmail cá nhân của bạn:" styleClass="input-label"/>
+                    <TextField fx:id="clientGmailAddressField" promptText="ví dụ: ten_ban@gmail.com" styleClass="form-input"/>
+                </VBox>
+
+                <VBox spacing="6">
+                    <Label text="Mật khẩu ứng dụng Gmail (App Password - 16 ký tự):" styleClass="input-label"/>
+                    <PasswordField fx:id="clientGmailPasswordField" promptText="16 ký tự mã ứng dụng Google" styleClass="form-input"/>
+                    <Label text="* Lưu ý: Google yêu cầu dùng Mật khẩu ứng dụng (tạo tại Google Account > Bảo mật > Mật khẩu ứng dụng)." styleClass="caption-muted" wrapText="true"/>
+                </VBox>
+            </VBox>
+
+            <HBox alignment="CENTER_RIGHT" spacing="10" style="-fx-padding: 8px 0 0 0;">
+                <Button fx:id="btnSaveGmailSettings" text="Bật Gmail" onAction="#onSaveClientGmailSettings" styleClass="button-primary"/>
+                <Button fx:id="btnDisableGmailSettings" text="Tắt Gmail" onAction="#onDisableClientGmailSettings" styleClass="button-danger"/>
+                <Button text="Đóng" onAction="#onCloseGmailSettings" styleClass="button-secondary"/>
             </HBox>
         </VBox>
     </VBox>

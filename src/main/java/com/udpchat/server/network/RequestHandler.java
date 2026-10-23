@@ -3,7 +3,6 @@ package com.udpchat.server.network;
 import com.udpchat.server.model.ClientSession;
 import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
-import com.udpchat.server.service.GmailGateway;
 import com.udpchat.server.service.MailService;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
@@ -27,18 +26,12 @@ public class RequestHandler {
     private final AuthService authService;
     private final MailService mailService;
     private final FileService fileService;
-    private final GmailGateway gmailGateway;
     private final Consumer<String> logger;
 
     public RequestHandler(AuthService authService, MailService mailService, FileService fileService, Consumer<String> logger) {
-        this(authService, mailService, fileService, null, logger);
-    }
-
-    public RequestHandler(AuthService authService, MailService mailService, FileService fileService, GmailGateway gmailGateway, Consumer<String> logger) {
         this.authService = authService;
         this.mailService = mailService;
         this.fileService = fileService;
-        this.gmailGateway = gmailGateway;
         this.logger = logger;
     }
 
@@ -91,12 +84,6 @@ public class RequestHandler {
 
                                 // Push NEW_MAIL tới tất cả người nhận đang online
                                 notifyOnlineRecipients(email, serverSocket);
-
-                                // Gửi song song qua Gmail SMTP (bất đồng bộ - không block UDP)
-                                if (gmailGateway != null) {
-                                    Map<String, String> userEmails = authService.getAllUserEmails();
-                                    gmailGateway.sendViaSmtp(email, userEmails);
-                                }
                             } else {
                                 UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Lỗi khi lưu trữ thư"), senderAddr, senderPort);
                             }
