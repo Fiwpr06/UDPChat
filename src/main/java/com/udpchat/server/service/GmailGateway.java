@@ -22,10 +22,11 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
- * Cầu nối trung gian giữa hệ thống UDP Mail Server và Gmail thật thông qua SMTP (gửi) và IMAP (nhận)
+ * Cầu nối chuyển tiếp thư ra Gmail thật thông qua OAuth 2.0 (XOAUTH2) hoặc SMTP/IMAP
  */
 public class GmailGateway {
     private final GmailConfig config;
+    private final OAuthService oAuthService;
     private final Path attachmentsDir;
     private final Consumer<String> logger;
     private final ExecutorService smtpExecutor;
@@ -40,7 +41,12 @@ public class GmailGateway {
     private IncomingMailHandler incomingMailHandler;
 
     public GmailGateway(GmailConfig config, Consumer<String> logger) {
-        this.config = config;
+        this(config, null, logger);
+    }
+
+    public GmailGateway(GmailConfig config, OAuthService oAuthService, Consumer<String> logger) {
+        this.config = config != null ? config : new GmailConfig();
+        this.oAuthService = oAuthService;
         this.attachmentsDir = Paths.get("server-data", "attachments");
         this.logger = logger != null ? logger : System.out::println;
         this.smtpExecutor = Executors.newSingleThreadExecutor(r -> {
@@ -56,6 +62,10 @@ public class GmailGateway {
 
     public GmailConfig getConfig() {
         return config;
+    }
+
+    public OAuthService getOAuthService() {
+        return oAuthService;
     }
 
     // =========================================================================
@@ -75,9 +85,6 @@ public class GmailGateway {
         public String getMessage() { return message; }
     }
 
-    /**
-     * Kiểm tra thực tế thông tin tài khoản và mật khẩu ứng dụng Gmail qua SMTP
-     */
     public CompletableFuture<ConnectionTestResult> testConnection(String address, String password) {
         return CompletableFuture.supplyAsync(() -> {
             if (address == null || address.trim().isEmpty()) {
@@ -111,7 +118,7 @@ public class GmailGateway {
                 transport.close();
                 return new ConnectionTestResult(true, "Kết nối và xác thực thành công với Google SMTP!");
             } catch (AuthenticationFailedException e) {
-                String hint = "Google từ chối mật khẩu. Lưu ý: Bạn PHẢI dùng 'Mật khẩu ứng dụng' (16 chữ cái tạo tại https://myaccount.google.com/apppasswords), KHÔNG dùng mật khẩu đăng nhập thông thường.";
+                String hint = "Google từ chối mật khẩu. Bạn có thể sử dụng tính năng 'Liên kết Gmail bằng OAuth 2.0' tiện lợi và bảo mật hơn.";
                 return new ConnectionTestResult(false, "Xác thực thất bại (535): " + hint);
             } catch (Exception e) {
                 return new ConnectionTestResult(false, "Lỗi kết nối tới smtp.gmail.com: " + e.getMessage());
@@ -120,46 +127,98 @@ public class GmailGateway {
     }
 
     // =========================================================================
-    // 1. GỬI THƯ QUA GMAIL SMTP (Bất đồng bộ)
+    // 1. GỬI THƯ QUA GMAIL SMTP (Bất đồng bộ) - HỖ TRỢ XOAUTH2 VÀ APP PASSWORD
     // =========================================================================
 
-    /**
-     * Gửi Email ra Gmail thật qua SMTP. Chạy bất đồng bộ để không block luồng UDP Server.
-     */
     public CompletableFuture<Boolean> sendViaSmtp(Email email, Map<String, String> userEmails) {
-        if (!config.isEnabled() || !config.isConfigured()) {
-            return CompletableFuture.completedFuture(false);
+        String sender = email != null ? email.getSender() : null;
+
+        // 1. Ưu tiên gửi bằng OAuth 2.0 Token của người gửi
+        if (oAuthService != null && sender != null) {
+            String accessToken = oAuthService.getValidAccessToken(sender);
+            String senderGmail = oAuthService.getLinkedEmail(sender);
+            if (senderGmail == null || senderGmail.isEmpty()) {
+                senderGmail = email.getSenderEmail();
+            }
+
+            if (accessToken != null && senderGmail != null && !senderGmail.isEmpty()) {
+                final String fromAddr = senderGmail;
+                return CompletableFuture.supplyAsync(() -> {
+                    try {
+                        logger.accept("[Gmail OAuth 2.0] Đang chuyển tiếp thư '" + email.getSubject() + "' từ @" + fromAddr + " qua XOAUTH2...");
+                        Session session = createOAuthSmtpSession(fromAddr, accessToken);
+                        MimeMessage msg = toMimeMessage(session, email, fromAddr, userEmails);
+                        if (msg == null) {
+                            logger.accept("[Gmail OAuth 2.0] Bỏ qua: Không có người nhận email thực tế hợp lệ.");
+                            return false;
+                        }
+
+                        Transport.send(msg);
+                        if (msg.getMessageID() != null) {
+                            email.setGmailMessageId(msg.getMessageID());
+                        }
+                        logger.accept("[Gmail OAuth 2.0] ✓ Đã gửi thành công thư '" + email.getSubject() + "' ra Gmail thực tế.");
+                        return true;
+                    } catch (Exception e) {
+                        logger.accept("[Gmail OAuth 2.0] ✗ Lỗi gửi thư qua XOAUTH2: " + e.getMessage());
+                        return false;
+                    }
+                }, smtpExecutor);
+            }
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                Session session = createSmtpSession();
-                MimeMessage msg = toMimeMessage(session, email, userEmails);
-                if (msg == null) {
-                    logger.accept("[Gmail SMTP Gateway] Bỏ qua: Không có người nhận email thực tế hợp lệ.");
+        // 2. Fallback: Nếu người gửi chưa có OAuth, kiểm tra Server Admin Gateway có được bật không
+        if (config != null && config.isEnabled() && config.isConfigured()) {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    Session session = createAdminSmtpSession();
+                    MimeMessage msg = toMimeMessage(session, email, config.getGmailAddress(), userEmails);
+                    if (msg == null) {
+                        logger.accept("[Gmail Admin Gateway] Bỏ qua: Không có người nhận email thực tế hợp lệ.");
+                        return false;
+                    }
+
+                    logger.accept("[Gmail Admin Gateway] Đang chuyển tiếp thư '" + email.getSubject() + "' qua SMTP...");
+                    Transport.send(msg);
+
+                    if (msg.getMessageID() != null) {
+                        email.setGmailMessageId(msg.getMessageID());
+                    }
+                    logger.accept("[Gmail Admin Gateway] ✓ Đã gửi thành công thư '" + email.getSubject() + "' ra Gmail thực tế.");
+                    return true;
+                } catch (Exception e) {
+                    logger.accept("[Gmail Admin Gateway] ✗ Lỗi gửi thư: " + e.getMessage());
                     return false;
                 }
+            }, smtpExecutor);
+        }
 
-                logger.accept("[Gmail SMTP Gateway] Đang chuyển tiếp thư '" + email.getSubject() + "' tới Gmail...");
-                Transport.send(msg);
-
-                String msgId = msg.getMessageID();
-                if (msgId != null) {
-                    email.setGmailMessageId(msgId);
-                }
-                logger.accept("[Gmail SMTP Gateway] ✓ Đã gửi thành công thư '" + email.getSubject() + "' ra Gmail thực tế.");
-                return true;
-            } catch (AuthenticationFailedException e) {
-                logger.accept("[Gmail SMTP Gateway] ✗ Lỗi xác thực Google (535 Bad Credentials). Vui lòng kiểm tra lại App Password trên Server.");
-                return false;
-            } catch (Exception e) {
-                logger.accept("[Gmail SMTP Gateway] ✗ Lỗi gửi thư qua Gmail: " + e.getMessage());
-                return false;
-            }
-        }, smtpExecutor);
+        // Không có cấu hình nào sẵn sàng
+        logger.accept("[Gmail Gateway] Thông báo: Người gửi '" + sender + "' chưa liên kết Gmail qua OAuth 2.0 và Server Gateway không bật; thư chỉ lưu trong hệ thống nội bộ.");
+        return CompletableFuture.completedFuture(false);
     }
 
-    private Session createSmtpSession() {
+    private Session createOAuthSmtpSession(String senderGmail, String accessToken) {
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+        props.put("mail.smtp.ssl.protocols", "TLSv1.2");
+        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        props.put("mail.smtp.auth.mechanisms", "XOAUTH2");
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "15000");
+
+        return Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(senderGmail, accessToken);
+            }
+        });
+    }
+
+    private Session createAdminSmtpSession() {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -178,29 +237,37 @@ public class GmailGateway {
         });
     }
 
-    private MimeMessage toMimeMessage(Session session, Email email, Map<String, String> userEmails) throws Exception {
+    private MimeMessage toMimeMessage(Session session, Email email, String actualFromAddress, Map<String, String> userEmails) throws Exception {
         MimeMessage msg = new MimeMessage(session);
 
-        // Sender: Tên người gửi nội bộ kèm đại diện Server Gateway
+        // Sender: Tên người gửi nội bộ kèm đại diện địa chỉ Gmail thực tế
         String senderName = email.getSender() != null ? email.getSender() : "UDPChat User";
-        String fromDisplay = senderName + " (qua UDPChat Server)";
-        msg.setFrom(new InternetAddress(config.getGmailAddress(), fromDisplay, "UTF-8"));
+        String senderEmail = email.getSenderEmail() != null ? email.getSenderEmail() : actualFromAddress;
+        String fromDisplay = senderName + (senderEmail != null ? " (" + senderEmail + ")" : "") + " (qua UDP Mail Chat)";
+        msg.setFrom(new InternetAddress(actualFromAddress, fromDisplay, "UTF-8"));
 
         // Reply-To: Cho phép người nhận bấm Reply gửi lại cho sender
-        msg.setReplyTo(new Address[]{ new InternetAddress(config.getGmailAddress(), senderName, "UTF-8") });
+        if (senderEmail != null && senderEmail.contains("@")) {
+            msg.setReplyTo(new Address[]{ new InternetAddress(senderEmail, senderName, "UTF-8") });
+        } else {
+            msg.setReplyTo(new Address[]{ new InternetAddress(actualFromAddress, senderName, "UTF-8") });
+        }
 
         // Recipients (TO)
         boolean hasRecipient = false;
         if (email.getRecipients() != null) {
             for (String r : email.getRecipients()) {
-                if (r == null || r.trim().isEmpty()) continue;
+                if (r == null || r.trim().isEmpty() || r.toLowerCase().contains("@udpmail")) continue;
                 String addr = r.trim();
                 if (addr.contains("@")) {
                     msg.addRecipient(Message.RecipientType.TO, new InternetAddress(addr));
                     hasRecipient = true;
                 } else if (userEmails != null && userEmails.containsKey(addr)) {
-                    msg.addRecipient(Message.RecipientType.TO, new InternetAddress(userEmails.get(addr)));
-                    hasRecipient = true;
+                    String realEm = userEmails.get(addr);
+                    if (realEm != null && realEm.contains("@") && !realEm.toLowerCase().contains("@udpmail")) {
+                        msg.addRecipient(Message.RecipientType.TO, new InternetAddress(realEm));
+                        hasRecipient = true;
+                    }
                 }
             }
         }
@@ -208,14 +275,17 @@ public class GmailGateway {
         // CC
         if (email.getCc() != null) {
             for (String r : email.getCc()) {
-                if (r == null || r.trim().isEmpty()) continue;
+                if (r == null || r.trim().isEmpty() || r.toLowerCase().contains("@udpmail")) continue;
                 String addr = r.trim();
                 if (addr.contains("@")) {
                     msg.addRecipient(Message.RecipientType.CC, new InternetAddress(addr));
                     hasRecipient = true;
                 } else if (userEmails != null && userEmails.containsKey(addr)) {
-                    msg.addRecipient(Message.RecipientType.CC, new InternetAddress(userEmails.get(addr)));
-                    hasRecipient = true;
+                    String realEm = userEmails.get(addr);
+                    if (realEm != null && realEm.contains("@") && !realEm.toLowerCase().contains("@udpmail")) {
+                        msg.addRecipient(Message.RecipientType.CC, new InternetAddress(realEm));
+                        hasRecipient = true;
+                    }
                 }
             }
         }
@@ -223,14 +293,17 @@ public class GmailGateway {
         // BCC
         if (email.getBcc() != null) {
             for (String r : email.getBcc()) {
-                if (r == null || r.trim().isEmpty()) continue;
+                if (r == null || r.trim().isEmpty() || r.toLowerCase().contains("@udpmail")) continue;
                 String addr = r.trim();
                 if (addr.contains("@")) {
                     msg.addRecipient(Message.RecipientType.BCC, new InternetAddress(addr));
                     hasRecipient = true;
                 } else if (userEmails != null && userEmails.containsKey(addr)) {
-                    msg.addRecipient(Message.RecipientType.BCC, new InternetAddress(userEmails.get(addr)));
-                    hasRecipient = true;
+                    String realEm = userEmails.get(addr);
+                    if (realEm != null && realEm.contains("@") && !realEm.toLowerCase().contains("@udpmail")) {
+                        msg.addRecipient(Message.RecipientType.BCC, new InternetAddress(realEm));
+                        hasRecipient = true;
+                    }
                 }
             }
         }
@@ -243,15 +316,17 @@ public class GmailGateway {
         msg.setSubject(email.getSubject() != null ? email.getSubject() : "(Không có tiêu đề)", "UTF-8");
         msg.setSentDate(new Date());
 
+        String footer = "\n\n__________________________________\n"
+                + "[Thư gửi từ hệ thống UDP Mail Chat - Người gửi: " + senderName
+                + (senderEmail != null ? " <" + senderEmail + ">" : "") + "]";
+
         // Body và Attachments
         if (email.getAttachments() != null && !email.getAttachments().isEmpty()) {
             Multipart multipart = new MimeMultipart();
 
             // Text part
             MimeBodyPart textPart = new MimeBodyPart();
-            String fullBody = (email.getBody() != null ? email.getBody() : "")
-                    + "\n\n__________________________________\n"
-                    + "[Thư gửi từ hệ thống UDP Mail Chat - Người gửi: " + senderName + "]";
+            String fullBody = (email.getBody() != null ? email.getBody() : "") + footer;
             textPart.setText(fullBody, "UTF-8");
             multipart.addBodyPart(textPart);
 
@@ -267,14 +342,12 @@ public class GmailGateway {
                     attachPart.setFileName(MimeUtility.encodeText(att.getFilename()));
                     multipart.addBodyPart(attachPart);
                 } else {
-                    logger.accept("[Gmail SMTP Gateway] Không tìm thấy file đính kèm trên server: " + att.getFilename());
+                    logger.accept("[Gmail Gateway] Không tìm thấy file đính kèm trên server: " + att.getFilename());
                 }
             }
             msg.setContent(multipart);
         } else {
-            String fullBody = (email.getBody() != null ? email.getBody() : "")
-                    + "\n\n__________________________________\n"
-                    + "[Thư gửi từ hệ thống UDP Mail Chat - Người gửi: " + senderName + "]";
+            String fullBody = (email.getBody() != null ? email.getBody() : "") + footer;
             msg.setText(fullBody, "UTF-8");
         }
 
@@ -311,11 +384,6 @@ public class GmailGateway {
             imapScheduler.shutdownNow();
             logger.accept("[Gmail IMAP Gateway] Đã dừng dịch vụ kiểm tra thư định kỳ.");
         }
-    }
-
-    public void syncNow(IncomingMailHandler handler) {
-        this.incomingMailHandler = handler;
-        CompletableFuture.runAsync(this::pollImapSafely);
     }
 
     private void pollImapSafely() {
@@ -378,8 +446,10 @@ public class GmailGateway {
         Address[] froms = msg.getFrom();
         if (froms != null && froms.length > 0) {
             email.setSender(extractAddress(froms[0]));
+            email.setSenderEmail(extractAddress(froms[0]));
         } else {
             email.setSender("unknown@gmail.com");
+            email.setSenderEmail("unknown@gmail.com");
         }
 
         List<String> recipients = extractAddressList(msg.getRecipients(Message.RecipientType.TO));
