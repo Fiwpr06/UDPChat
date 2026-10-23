@@ -1,84 +1,113 @@
 package com.udpchat.server.service;
 
+import com.udpchat.server.database.DatabaseManager;
 import com.udpchat.server.model.ClientSession;
-import java.io.*;
+
 import java.net.InetAddress;
-import java.nio.file.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+/**
+ * Quản lý xác thực người dùng và phiên làm việc, lưu trữ vĩnh viễn trên MySQL
+ */
 public class AuthService {
     private final ConcurrentHashMap<String, ClientSession> onlineSessions = new ConcurrentHashMap<>();
-    private final Path usersDir;
 
     public AuthService() {
-        usersDir = Paths.get("server-data", "users");
+        // Đảm bảo Database schema đã sẵn sàng
         try {
-            Files.createDirectories(usersDir);
-        } catch (IOException e) {
-            e.printStackTrace();
+            DatabaseManager.initialize();
+        } catch (Exception e) {
+            System.err.println("[AuthService] Lỗi kết nối CSDL: " + e.getMessage());
         }
     }
 
     // Đăng ký người dùng mới
     public String register(String username, String password) {
-        return register(username, password, "127.0.0.1");
+        return register(username, password, "127.0.0.1", null);
     }
 
     public String register(String username, String password, InetAddress addr) {
-        return register(username, password, addr != null ? normalizeAddress(addr) : "127.0.0.1");
+        return register(username, password, addr != null ? normalizeAddress(addr) : "127.0.0.1", null);
     }
 
     public String register(String username, String password, String clientIp) {
-        Path userFile = usersDir.resolve(username + ".txt");
-        if (Files.exists(userFile)) {
-            return "Lỗi: Tài khoản '" + username + "' đã tồn tại";
+        return register(username, password, clientIp, null);
+    }
+
+    public String register(String username, String password, String clientIp, String email) {
+        if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
+            return "Lỗi: Tên đăng nhập và mật khẩu không được để trống";
         }
-        try {
-            String content = "password=" + password + System.lineSeparator()
-                    + "ip=" + (clientIp != null ? clientIp : "127.0.0.1") + System.lineSeparator()
-                    + "email=";
-            Files.writeString(userFile, content, java.nio.charset.StandardCharsets.UTF_8);
-            return "Thành công: Đăng ký tài khoản '" + username + "' thành công";
-        } catch (IOException e) {
-            return "Lỗi: Không thể lưu thông tin tài khoản";
+        String cleanUser = username.trim();
+        String cleanIp = clientIp != null ? clientIp.trim() : "127.0.0.1";
+        String cleanEmail = (email != null && !email.trim().isEmpty()) ? email.trim() : null;
+
+        String checkSql = "SELECT id FROM users WHERE username = ?";
+        String insertSql = "INSERT INTO users (username, password_hash, gmail_address, client_ip) VALUES (?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+            checkStmt.setString(1, cleanUser);
+            try (ResultSet rs = checkStmt.executeQuery()) {
+                if (rs.next()) {
+                    return "Lỗi: Tài khoản '" + cleanUser + "' đã tồn tại";
+                }
+            }
+
+            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
+                insertStmt.setString(1, cleanUser);
+                insertStmt.setString(2, password);
+                insertStmt.setString(3, cleanEmail);
+                insertStmt.setString(4, cleanIp);
+                insertStmt.executeUpdate();
+                return "Thành công: Đăng ký tài khoản '" + cleanUser + "' thành công";
+            }
+        } catch (SQLException e) {
+            return "Lỗi CSDL khi đăng ký: " + e.getMessage();
         }
     }
 
     // Đăng nhập
     public String login(String username, String password, InetAddress addr, int reqPort, int listenerPort) {
-        Path userFile = usersDir.resolve(username + ".txt");
-        if (!Files.exists(userFile)) {
-            return "Lỗi: Tài khoản '" + username + "' không tồn tại";
+        if (username == null || password == null) {
+            return "Lỗi: Thông tin đăng nhập không hợp lệ";
         }
-        try {
-            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
-            String savedPassword = null;
-            for (String line : content.split("\\r?\\n")) {
-                line = line.trim();
-                if (line.startsWith("password=")) {
-                    savedPassword = line.substring("password=".length());
-                    break;
+        String cleanUser = username.trim();
+        String selectSql = "SELECT password_hash FROM users WHERE username = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(selectSql)) {
+            stmt.setString(1, cleanUser);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return "Lỗi: Tài khoản '" + cleanUser + "' không tồn tại";
+                }
+                String savedPassword = rs.getString("password_hash");
+                if (savedPassword != null && savedPassword.equals(password)) {
+                    String sessionKey = makeSessionKey(addr, reqPort);
+                    InetAddress normalizedAddr;
+                    try {
+                        normalizedAddr = InetAddress.getByName(normalizeAddress(addr));
+                    } catch (Exception e) {
+                        normalizedAddr = addr;
+                    }
+                    ClientSession session = new ClientSession(cleanUser, normalizedAddr, reqPort, listenerPort);
+                    onlineSessions.put(sessionKey, session);
+                    return "Thành công: Đăng nhập thành công";
+                } else {
+                    return "Lỗi: Mật khẩu không chính xác";
                 }
             }
-            if (savedPassword != null && savedPassword.equals(password)) {
-                String sessionKey = makeSessionKey(addr, reqPort);
-                // Chuẩn hóa địa chỉ IP để đảm bảo push message đến đúng đích
-                InetAddress normalizedAddr;
-                try {
-                    normalizedAddr = InetAddress.getByName(normalizeAddress(addr));
-                } catch (Exception e) {
-                    normalizedAddr = addr;
-                }
-                ClientSession session = new ClientSession(username, normalizedAddr, reqPort, listenerPort);
-                onlineSessions.put(sessionKey, session);
-                return "Thành công: Đăng nhập thành công";
-            } else {
-                return "Lỗi: Mật khẩu không chính xác";
-            }
-        } catch (IOException e) {
-            return "Lỗi: Quá trình xác thực đăng nhập thất bại";
+        } catch (SQLException e) {
+            return "Lỗi CSDL khi đăng nhập: " + e.getMessage();
         }
     }
 
@@ -108,7 +137,7 @@ public class AuthService {
     public Collection<ClientSession> getOnlineSessionsExcept(String excludeKey) {
         return onlineSessions.entrySet().stream()
                 .filter(entry -> !entry.getKey().equals(excludeKey))
-                .map(java.util.Map.Entry::getValue)
+                .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
     }
 
@@ -117,73 +146,76 @@ public class AuthService {
     }
 
     /**
-     * Lấy địa chỉ email thực tế của người dùng từ tệp cấu hình tài khoản
+     * Lấy địa chỉ email thực tế của người dùng từ CSDL MySQL
      */
     public String getUserEmail(String username) {
         if (username == null || username.trim().isEmpty()) return null;
         if (username.contains("@")) {
             return username.trim();
         }
-        Path userFile = usersDir.resolve(username + ".txt");
-        if (!Files.exists(userFile)) return null;
-        try {
-            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
-            for (String line : content.split("\\r?\\n")) {
-                line = line.trim();
-                if (line.startsWith("email=")) {
-                    String em = line.substring("email=".length()).trim();
-                    return em.isEmpty() ? null : em;
+        String sql = "SELECT gmail_address FROM users WHERE username = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String email = rs.getString("gmail_address");
+                    return (email != null && !email.trim().isEmpty()) ? email.trim() : null;
                 }
             }
-        } catch (IOException ignored) {}
+        } catch (SQLException ignored) {}
         return null;
     }
 
     /**
-     * Thiết lập địa chỉ email thực tế cho người dùng
+     * Cập nhật địa chỉ email thực tế cho người dùng trong CSDL MySQL
      */
     public boolean setUserEmail(String username, String email) {
         if (username == null || username.trim().isEmpty()) return false;
-        Path userFile = usersDir.resolve(username + ".txt");
-        if (!Files.exists(userFile)) return false;
-        try {
-            String content = Files.readString(userFile, java.nio.charset.StandardCharsets.UTF_8);
-            StringBuilder sb = new StringBuilder();
-            boolean emailFound = false;
-            for (String line : content.split("\\r?\\n")) {
-                if (line.trim().startsWith("email=")) {
-                    sb.append("email=").append(email != null ? email.trim() : "").append(System.lineSeparator());
-                    emailFound = true;
-                } else if (!line.trim().isEmpty()) {
-                    sb.append(line.trim()).append(System.lineSeparator());
-                }
-            }
-            if (!emailFound) {
-                sb.append("email=").append(email != null ? email.trim() : "").append(System.lineSeparator());
-            }
-            Files.writeString(userFile, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
-            return true;
-        } catch (IOException e) {
+        String cleanEmail = (email != null && !email.trim().isEmpty()) ? email.trim() : null;
+        String sql = "UPDATE users SET gmail_address = ? WHERE username = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, cleanEmail);
+            stmt.setString(2, username.trim());
+            int rows = stmt.executeUpdate();
+            return rows > 0;
+        } catch (SQLException e) {
             return false;
         }
     }
 
     /**
-     * Lấy bảng ánh xạ toàn bộ username -> email thực tế
+     * Tra cứu ngược: tìm username nội bộ tương ứng với địa chỉ Gmail
      */
-    public java.util.Map<String, String> getAllUserEmails() {
-        java.util.Map<String, String> map = new java.util.HashMap<>();
-        if (!Files.exists(usersDir)) return map;
-        try (var stream = Files.list(usersDir)) {
-            for (Path p : stream.filter(f -> f.toString().endsWith(".txt")).toList()) {
-                String fname = p.getFileName().toString();
-                String username = fname.substring(0, fname.length() - 4);
-                String email = getUserEmail(username);
-                if (email != null && !email.isEmpty()) {
-                    map.put(username, email);
+    public String getUsernameByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) return null;
+        String sql = "SELECT username FROM users WHERE LOWER(gmail_address) = LOWER(?)";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("username");
                 }
             }
-        } catch (IOException ignored) {}
+        } catch (SQLException ignored) {}
+        return null;
+    }
+
+    /**
+     * Lấy bảng ánh xạ toàn bộ username -> email thực tế từ MySQL
+     */
+    public Map<String, String> getAllUserEmails() {
+        Map<String, String> map = new HashMap<>();
+        String sql = "SELECT username, gmail_address FROM users WHERE gmail_address IS NOT NULL AND gmail_address != ''";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                map.put(rs.getString("username"), rs.getString("gmail_address"));
+            }
+        } catch (SQLException ignored) {}
         return map;
     }
 
@@ -193,17 +225,14 @@ public class AuthService {
 
     /**
      * Chuẩn hóa địa chỉ IP: chuyển IPv6 loopback (::1) về IPv4 loopback (127.0.0.1)
-     * để tránh sessionKey không nhất quán khi client chạy trên cùng máy host.
      */
     public static String normalizeAddress(InetAddress addr) {
         if (addr.isLoopbackAddress()) {
             return "127.0.0.1";
         }
-        // Xử lý IPv4-mapped IPv6 addresses (e.g., ::ffff:192.168.1.x)
         if (addr instanceof java.net.Inet6Address) {
             java.net.Inet6Address ipv6 = (java.net.Inet6Address) addr;
             byte[] bytes = ipv6.getAddress();
-            // Check if it's an IPv4-mapped IPv6 address (::ffff:x.x.x.x)
             boolean isIPv4Mapped = true;
             for (int i = 0; i < 10; i++) {
                 if (bytes[i] != 0) { isIPv4Mapped = false; break; }
