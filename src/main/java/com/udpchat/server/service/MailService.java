@@ -1,13 +1,11 @@
 package com.udpchat.server.service;
 
+import com.udpchat.server.database.DatabaseManager;
 import com.udpchat.shared.model.Attachment;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
-import com.udpchat.shared.util.JsonUtil;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -15,35 +13,23 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * Quản lý lưu trữ và thao tác hộp thư điện tử trên Server theo chuỗi hội thoại (Gmail Threading)
+ * Quản lý lưu trữ và thao tác hộp thư điện tử hoàn toàn trên CSDL MySQL theo chuỗi hội thoại
  */
 public class MailService {
     private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis());
-    private final Path mailboxRoot;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private final AuthService authService;
 
     public MailService() {
-        mailboxRoot = Paths.get("server-data", "mailbox");
-        try {
-            Files.createDirectories(mailboxRoot);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        this(null);
     }
 
-    private Path getUserFolder(String username, MailFolder folder) {
-        String safeUser = username.replaceAll("[^a-zA-Z0-9_.-]", "_");
-        Path folderPath = mailboxRoot.resolve(safeUser).resolve(folder.name().toLowerCase());
-        try {
-            Files.createDirectories(folderPath);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return folderPath;
+    public MailService(AuthService authService) {
+        this.authService = authService;
     }
 
     /**
-     * Gửi email: Tự động gắn/kế thừa threadId và lưu vào hộp Sent của người gửi và Inbox của người nhận
+     * Gửi email: Lưu vào MySQL và phân phối bản sao vào hòm thư SENT của người gửi và INBOX của người nhận
      */
     public synchronized boolean sendMail(Email email) {
         if (email == null || email.getSender() == null) return false;
@@ -56,47 +42,70 @@ public class MailService {
         }
         email.setTimestamp(Math.max(email.getTimestamp(), SEQUENCE.incrementAndGet()));
 
-        // Kế thừa threadId nếu là thư trả lời hoặc chuyển tiếp
+        // Kế thừa threadId nếu là thư trả lời
         if (email.getThreadId() == null || email.getThreadId().isEmpty() || email.getThreadId().equals(email.getId())) {
             if (email.getReplyToId() != null && !email.getReplyToId().isEmpty()) {
-                Email parent = findMailAnywhere(email.getReplyToId());
-                if (parent != null && parent.getThreadId() != null && !parent.getThreadId().isEmpty()) {
-                    email.setThreadId(parent.getThreadId());
-                } else {
-                    email.setThreadId(email.getReplyToId());
-                }
+                String parentThreadId = findThreadIdOfMail(email.getReplyToId());
+                email.setThreadId(parentThreadId != null ? parentThreadId : email.getReplyToId());
             } else {
                 email.setThreadId(email.getId());
             }
         }
 
-        // 1. Lưu bản sao vào thư mục SENT của người gửi
-        email.setFolder(MailFolder.SENT);
-        email.setRead(true);
-        saveEmailToFile(email.getSender(), MailFolder.SENT, email);
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Lưu bản ghi chính vào bảng emails
+                insertEmailRecord(conn, email, false);
 
-        // 2. Gom tất cả người nhận (To + CC + BCC)
-        Set<String> allRecipients = new HashSet<>();
-        if (email.getRecipients() != null) allRecipients.addAll(email.getRecipients());
-        if (email.getCc() != null) allRecipients.addAll(email.getCc());
-        if (email.getBcc() != null) allRecipients.addAll(email.getBcc());
+                // 2. Lưu vào bảng attachments nếu có đính kèm
+                insertAttachments(conn, email.getId(), email.getAttachments());
 
-        // 3. Lưu vào INBOX của từng người nhận
-        for (String recipient : allRecipients) {
-            if (recipient == null || recipient.trim().isEmpty()) continue;
-            String trimmedRecipient = recipient.trim();
-            Email recipientCopy = JsonUtil.fromJson(JsonUtil.toJson(email), Email.class);
-            recipientCopy.setFolder(MailFolder.INBOX);
-            recipientCopy.setRead(false);
-            recipientCopy.setStarred(false);
-            saveEmailToFile(trimmedRecipient, MailFolder.INBOX, recipientCopy);
+                // 3. Lưu bản ghi SENT cho người gửi
+                insertRecipientRecord(conn, email.getId(), email.getSender(), "SENDER", MailFolder.SENT.name(), email.getSender(), true, false);
+
+                // 4. Phân phối vào INBOX của từng người nhận (To, CC, BCC)
+                Set<String> allRecipients = new LinkedHashSet<>();
+                if (email.getRecipients() != null) allRecipients.addAll(email.getRecipients());
+                if (email.getCc() != null) allRecipients.addAll(email.getCc());
+                if (email.getBcc() != null) allRecipients.addAll(email.getBcc());
+
+                for (String rec : allRecipients) {
+                    if (rec == null || rec.trim().isEmpty()) continue;
+                    String target = rec.trim();
+                    String owner = target;
+                    // Nếu là email, tra cứu username nội bộ tương ứng để đưa vào inbox người dùng
+                    if (target.contains("@") && authService != null) {
+                        String mappedUser = authService.getUsernameByEmail(target);
+                        if (mappedUser != null && !mappedUser.isEmpty()) {
+                            owner = mappedUser;
+                        }
+                    }
+
+                    String recType = "TO";
+                    if (email.getCc() != null && email.getCc().contains(target)) recType = "CC";
+                    else if (email.getBcc() != null && email.getBcc().contains(target)) recType = "BCC";
+
+                    insertRecipientRecord(conn, email.getId(), target, recType, MailFolder.INBOX.name(), owner, false, false);
+                }
+
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                conn.rollback();
+                System.err.println("[MailService] Lỗi lưu email: " + e.getMessage());
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi kết nối CSDL khi gửi thư: " + e.getMessage());
+            return false;
         }
-
-        return true;
     }
 
     /**
-     * Nhận thư từ nguồn bên ngoài (như Gmail IMAP) và lưu vào INBOX của người nhận nội bộ
+     * Nhận thư từ bên ngoài (như Gmail IMAP) và lưu vào INBOX của người dùng nội bộ
      */
     public synchronized boolean receiveExternalMail(String username, Email email) {
         if (username == null || email == null) return false;
@@ -106,58 +115,78 @@ public class MailService {
         if (email.getSentAt() == null || email.getSentAt().isEmpty()) {
             email.setSentAt(LocalDateTime.now().format(formatter));
         }
-        email.setFolder(MailFolder.INBOX);
-        email.setRead(false);
-        email.setStarred(false);
         email.setTimestamp(Math.max(email.getTimestamp(), SEQUENCE.incrementAndGet()));
         if (email.getThreadId() == null || email.getThreadId().isEmpty()) {
             email.setThreadId(email.getId());
         }
-        return saveEmailToFile(username, MailFolder.INBOX, email);
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                insertEmailRecord(conn, email, false);
+                insertAttachments(conn, email.getId(), email.getAttachments());
+                insertRecipientRecord(conn, email.getId(), username, "TO", MailFolder.INBOX.name(), username, false, false);
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                conn.rollback();
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            return false;
+        }
     }
 
     /**
-     * Lấy danh sách thư theo thư mục, tự động GỘP THƯ THEO CHUỖI HỘI THOẠI (Conversation Threading)
+     * Lấy danh sách email theo thư mục và gộp luồng hội thoại (Conversation Threading)
      */
     public synchronized List<Email> listMails(String username, MailFolder folder, int page, int pageSize) {
         if (username == null) return Collections.emptyList();
-        List<Email> allMails = new ArrayList<>();
 
+        List<Email> rawMails = new ArrayList<>();
         if (folder == MailFolder.STARRED) {
-            allMails.addAll(loadFolderMails(username, MailFolder.INBOX));
-            allMails.addAll(loadFolderMails(username, MailFolder.SENT));
-            allMails = allMails.stream().filter(Email::isStarred).collect(Collectors.toList());
+            rawMails.addAll(loadFolderEmails(username, MailFolder.STARRED));
         } else if (folder == MailFolder.INBOX) {
-            allMails.addAll(loadFolderMails(username, MailFolder.INBOX));
-            Set<String> threadIdsInFolder = allMails.stream()
+            List<Email> inboxMails = loadFolderEmails(username, MailFolder.INBOX);
+            rawMails.addAll(inboxMails);
+            Set<String> threadIds = inboxMails.stream()
                     .map(m -> m.getThreadId() != null ? m.getThreadId() : Email.normalizeSubject(m.getSubject()).toLowerCase())
                     .collect(Collectors.toSet());
-            List<Email> sentMails = loadFolderMails(username, MailFolder.SENT);
+            List<Email> sentMails = loadFolderEmails(username, MailFolder.SENT);
             for (Email s : sentMails) {
                 String sKey = s.getThreadId() != null ? s.getThreadId() : Email.normalizeSubject(s.getSubject()).toLowerCase();
-                if (threadIdsInFolder.contains(sKey)) {
-                    allMails.add(s);
+                if (threadIds.contains(sKey)) {
+                    rawMails.add(s);
                 }
             }
         } else if (folder == MailFolder.SENT) {
-            allMails.addAll(loadFolderMails(username, MailFolder.SENT));
-            Set<String> threadIdsInFolder = allMails.stream()
+            List<Email> sentMails = loadFolderEmails(username, MailFolder.SENT);
+            rawMails.addAll(sentMails);
+            Set<String> threadIds = sentMails.stream()
                     .map(m -> m.getThreadId() != null ? m.getThreadId() : Email.normalizeSubject(m.getSubject()).toLowerCase())
                     .collect(Collectors.toSet());
-            List<Email> inboxMails = loadFolderMails(username, MailFolder.INBOX);
+            List<Email> inboxMails = loadFolderEmails(username, MailFolder.INBOX);
             for (Email in : inboxMails) {
                 String inKey = in.getThreadId() != null ? in.getThreadId() : Email.normalizeSubject(in.getSubject()).toLowerCase();
-                if (threadIdsInFolder.contains(inKey)) {
-                    allMails.add(in);
+                if (threadIds.contains(inKey)) {
+                    rawMails.add(in);
                 }
             }
         } else {
-            allMails = loadFolderMails(username, folder);
+            rawMails.addAll(loadFolderEmails(username, folder));
+        }
+
+        // Loại bỏ trùng lặp id nếu một email xuất hiện nhiều lần
+        Map<String, Email> uniqueMails = new LinkedHashMap<>();
+        for (Email m : rawMails) {
+            uniqueMails.put(m.getId(), m);
         }
 
         // Gom các email cùng luồng (threadId hoặc normalized subject)
         Map<String, List<Email>> threadGroups = new LinkedHashMap<>();
-        for (Email m : allMails) {
+        for (Email m : uniqueMails.values()) {
             String key = m.getThreadId();
             if (key == null || key.isEmpty()) {
                 key = Email.normalizeSubject(m.getSubject()).toLowerCase();
@@ -168,11 +197,10 @@ public class MailService {
         List<Email> threadList = new ArrayList<>();
         for (Map.Entry<String, List<Email>> entry : threadGroups.entrySet()) {
             List<Email> msgs = entry.getValue();
-            // Sắp xếp thư trong luồng từ cũ đến mới
             msgs.sort(this::compareMailsChronological);
             Email latest = msgs.get(msgs.size() - 1);
 
-            Email rep = JsonUtil.fromJson(JsonUtil.toJson(latest), Email.class);
+            Email rep = cloneEmail(latest);
             rep.setThreadId(entry.getKey());
             rep.setThreadMessageCount(msgs.size());
 
@@ -189,15 +217,9 @@ public class MailService {
             }
             rep.setThreadParticipants(participants);
 
-            // Bất kỳ thư nào chưa đọc -> Luồng hiển thị chưa đọc
-            boolean anyUnread = msgs.stream().anyMatch(m -> !m.isRead());
-            rep.setRead(!anyUnread);
-
-            // Bất kỳ thư nào gắn sao -> Luồng hiển thị sao
-            boolean anyStarred = msgs.stream().anyMatch(Email::isStarred);
-            rep.setStarred(anyStarred);
-
-            // Bất kỳ thư nào có đính kèm -> Luồng hiển thị icon tệp
+            // Trạng thái chưa đọc / có gắn sao / có tệp đính kèm
+            rep.setRead(msgs.stream().allMatch(Email::isRead));
+            rep.setStarred(msgs.stream().anyMatch(Email::isStarred));
             if (msgs.stream().anyMatch(Email::hasAttachments)) {
                 if (!rep.hasAttachments()) {
                     rep.setAttachments(List.of(new Attachment("placeholder", "file", 0, "OTHER", "", "")));
@@ -207,7 +229,7 @@ public class MailService {
             threadList.add(rep);
         }
 
-        // Sắp xếp luồng theo hoạt động mới nhất lên đầu
+        // Sắp xếp luồng mới nhất lên đầu
         threadList.sort(this::compareMailsNewestFirst);
 
         // Phân trang
@@ -218,90 +240,58 @@ public class MailService {
             return Collections.emptyList();
         }
         int endIndex = Math.min(startIndex + pageSize, threadList.size());
-        return threadList.subList(startIndex, endIndex);
+        return new ArrayList<>(threadList.subList(startIndex, endIndex));
     }
 
     /**
-     * Lấy toàn bộ các email thuộc về một chuỗi hội thoại (Conversation Thread)
+     * Lấy toàn bộ các email trong cùng một chuỗi hội thoại (Conversation Thread)
      */
     public synchronized List<Email> getThread(String username, String threadId) {
         if (username == null || threadId == null) return Collections.emptyList();
-        Map<String, Email> uniqueMails = new HashMap<>();
 
-        for (MailFolder folder : MailFolder.values()) {
-            if (folder == MailFolder.TRASH) continue;
-            List<Email> folderMails = loadFolderMails(username, folder);
-            for (Email m : folderMails) {
-                if (threadId.equalsIgnoreCase(m.getThreadId())
-                        || threadId.equalsIgnoreCase(m.getId())
-                        || threadId.equalsIgnoreCase(m.getReplyToId())
-                        || threadId.equalsIgnoreCase(Email.normalizeSubject(m.getSubject()).toLowerCase())
-                        || threadId.equalsIgnoreCase(Email.normalizeSubject(m.getSubject()))) {
-                    uniqueMails.put(m.getId(), m);
-                }
-            }
+        String actualThreadId = findThreadIdOfMail(threadId);
+        if (actualThreadId == null || actualThreadId.isEmpty()) {
+            actualThreadId = threadId;
         }
 
-        // Nếu không thấy trong các thư mục chính, tìm kiếm trong Thùng rác
-        if (uniqueMails.isEmpty()) {
-            List<Email> trashMails = loadFolderMails(username, MailFolder.TRASH);
-            for (Email m : trashMails) {
-                if (threadId.equalsIgnoreCase(m.getThreadId())
-                        || threadId.equalsIgnoreCase(m.getId())
-                        || threadId.equalsIgnoreCase(m.getReplyToId())
-                        || threadId.equalsIgnoreCase(Email.normalizeSubject(m.getSubject()).toLowerCase())
-                        || threadId.equalsIgnoreCase(Email.normalizeSubject(m.getSubject()))) {
-                    uniqueMails.put(m.getId(), m);
+        Map<String, Email> uniqueMails = new LinkedHashMap<>();
+        String sql = "SELECT e.*, r.folder, r.is_read AS rec_read, r.is_starred AS rec_starred "
+                + "FROM emails e "
+                + "JOIN email_recipients r ON e.id = r.email_id "
+                + "WHERE r.owner = ? AND (e.thread_id = ? OR e.thread_id = ? OR e.id = ? OR e.reply_to_id = ?) "
+                + "ORDER BY e.timestamp_order ASC";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            stmt.setString(2, threadId);
+            stmt.setString(3, actualThreadId);
+            stmt.setString(4, threadId);
+            stmt.setString(5, threadId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Email email = mapResultSetToEmail(conn, rs);
+                    uniqueMails.put(email.getId(), email);
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi getThread: " + e.getMessage());
         }
 
-        List<Email> threadMessages = new ArrayList<>(uniqueMails.values());
-        // Sắp xếp từ cũ nhất đến mới nhất theo dòng thời gian hội thoại
-        threadMessages.sort(this::compareMailsChronological);
+        List<Email> list = new ArrayList<>(uniqueMails.values());
+
+        list.sort(this::compareMailsChronological);
 
         // Đánh dấu tất cả thư trong thread là đã đọc
-        for (Email m : threadMessages) {
+        for (Email m : list) {
             if (!m.isRead()) {
                 m.setRead(true);
                 markRead(username, m.getId(), true);
             }
         }
 
-        return threadMessages;
-    }
-
-    private int compareMailsChronological(Email a, Email b) {
-        if (a.getTimestamp() > 0 && b.getTimestamp() > 0 && a.getTimestamp() != b.getTimestamp()) {
-            return Long.compare(a.getTimestamp(), b.getTimestamp());
-        }
-        String timeA = a.getSentAt() != null ? a.getSentAt() : "";
-        String timeB = b.getSentAt() != null ? b.getSentAt() : "";
-        int cmp = timeA.compareTo(timeB);
-        if (cmp != 0) return cmp;
-        if (b.getReplyToId() != null && b.getReplyToId().equalsIgnoreCase(a.getId())) return -1;
-        if (a.getReplyToId() != null && a.getReplyToId().equalsIgnoreCase(b.getId())) return 1;
-        return 0;
-    }
-
-    private int compareMailsNewestFirst(Email a, Email b) {
-        return compareMailsChronological(b, a);
-    }
-
-    /**
-     * Đếm tổng số luồng thư trong một thư mục
-     */
-    public synchronized int getMailCount(String username, MailFolder folder) {
-        return listMails(username, folder, 1, Integer.MAX_VALUE).size();
-    }
-
-    /**
-     * Đếm số thư chưa đọc trong hộp thư đến
-     */
-    public synchronized int getUnreadInboxCount(String username) {
-        return (int) loadFolderMails(username, MailFolder.INBOX).stream()
-                .filter(m -> !m.isRead())
-                .count();
+        return list;
     }
 
     /**
@@ -309,90 +299,110 @@ public class MailService {
      */
     public synchronized Email readMail(String username, String mailId) {
         if (username == null || mailId == null) return null;
-        for (MailFolder folder : MailFolder.values()) {
-            Path folderPath = getUserFolder(username, folder);
-            Path filePath = folderPath.resolve(mailId + ".json");
-            if (Files.exists(filePath)) {
-                Email email = loadEmailFromFile(filePath);
-                if (email != null && folder == MailFolder.INBOX && !email.isRead()) {
-                    email.setRead(true);
-                    saveEmailToFile(username, folder, email);
+
+        String sql = "SELECT e.*, r.folder, r.is_read AS rec_read, r.is_starred AS rec_starred "
+                + "FROM emails e "
+                + "JOIN email_recipients r ON e.id = r.email_id "
+                + "WHERE r.owner = ? AND e.id = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            stmt.setString(2, mailId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Email email = mapResultSetToEmail(conn, rs);
+                    if (!email.isRead()) {
+                        email.setRead(true);
+                        markRead(username, mailId, true);
+                    }
+                    return email;
                 }
-                return email;
             }
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi readMail: " + e.getMessage());
         }
         return null;
     }
 
     /**
-     * Đánh dấu thư đã đọc hoặc chưa đọc
+     * Đánh dấu đã đọc / chưa đọc
      */
     public synchronized boolean markRead(String username, String mailId, boolean read) {
-        for (MailFolder folder : MailFolder.values()) {
-            Path filePath = getUserFolder(username, folder).resolve(mailId + ".json");
-            if (Files.exists(filePath)) {
-                Email email = loadEmailFromFile(filePath);
-                if (email != null) {
-                    email.setRead(read);
-                    saveEmailToFile(username, folder, email);
-                    return true;
-                }
-            }
+        if (username == null || mailId == null) return false;
+        String sql = "UPDATE email_recipients SET is_read = ? WHERE owner = ? AND email_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setBoolean(1, read);
+            stmt.setString(2, username);
+            stmt.setString(3, mailId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            return false;
         }
-        return false;
     }
 
     /**
      * Gắn sao hoặc bỏ gắn sao
      */
     public synchronized boolean toggleStar(String username, String mailId, boolean starred) {
-        for (MailFolder folder : MailFolder.values()) {
-            Path filePath = getUserFolder(username, folder).resolve(mailId + ".json");
-            if (Files.exists(filePath)) {
-                Email email = loadEmailFromFile(filePath);
-                if (email != null) {
-                    email.setStarred(starred);
-                    saveEmailToFile(username, folder, email);
-                    return true;
-                }
-            }
+        if (username == null || mailId == null) return false;
+        String sql = "UPDATE email_recipients SET is_starred = ? WHERE owner = ? AND email_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setBoolean(1, starred);
+            stmt.setString(2, username);
+            stmt.setString(3, mailId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            return false;
         }
-        return false;
     }
 
     /**
-     * Xóa email: Chuyển vào Thùng rác (TRASH), hoặc xóa vĩnh viễn nếu đã trong TRASH
+     * Xóa email: Chuyển vào thùng rác (TRASH), hoặc xóa vĩnh viễn nếu đã trong thùng rác
      */
     public synchronized boolean deleteMail(String username, String mailId, boolean permanent) {
-        Path trashFolder = getUserFolder(username, MailFolder.TRASH);
-        Path inTrashPath = trashFolder.resolve(mailId + ".json");
+        if (username == null || mailId == null) return false;
 
-        if (permanent || Files.exists(inTrashPath)) {
-            try {
-                return Files.deleteIfExists(inTrashPath);
-            } catch (IOException e) {
-                return false;
-            }
-        }
-
-        for (MailFolder folder : MailFolder.values()) {
-            if (folder == MailFolder.TRASH) continue;
-            Path sourceFile = getUserFolder(username, folder).resolve(mailId + ".json");
-            if (Files.exists(sourceFile)) {
-                try {
-                    Email email = loadEmailFromFile(sourceFile);
-                    if (email != null) {
-                        email.setFolder(MailFolder.TRASH);
-                        saveEmailToFile(username, MailFolder.TRASH, email);
+        try (Connection conn = DatabaseManager.getConnection()) {
+            if (permanent) {
+                String sql = "DELETE FROM email_recipients WHERE owner = ? AND email_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, username);
+                    stmt.setString(2, mailId);
+                    return stmt.executeUpdate() > 0;
+                }
+            } else {
+                // Kiểm tra xem hiện tại có đang trong TRASH không
+                String checkSql = "SELECT folder FROM email_recipients WHERE owner = ? AND email_id = ?";
+                try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                    checkStmt.setString(1, username);
+                    checkStmt.setString(2, mailId);
+                    try (ResultSet rs = checkStmt.executeQuery()) {
+                        if (rs.next()) {
+                            String currentFolder = rs.getString("folder");
+                            if ("TRASH".equalsIgnoreCase(currentFolder)) {
+                                // Đã trong thùng rác -> xóa vĩnh viễn
+                                return deleteMail(username, mailId, true);
+                            }
+                        }
                     }
-                    Files.deleteIfExists(sourceFile);
-                    return true;
-                } catch (IOException e) {
-                    return false;
+                }
+
+                // Di chuyển vào thùng rác
+                String updateSql = "UPDATE email_recipients SET folder = 'TRASH' WHERE owner = ? AND email_id = ?";
+                try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                    updateStmt.setString(1, username);
+                    updateStmt.setString(2, mailId);
+                    return updateStmt.executeUpdate() > 0;
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi deleteMail: " + e.getMessage());
+            return false;
         }
-        return false;
     }
 
     /**
@@ -411,33 +421,94 @@ public class MailService {
         if (draft.getThreadId() == null || draft.getThreadId().isEmpty()) {
             draft.setThreadId(draft.getId());
         }
-        return saveEmailToFile(username, MailFolder.DRAFTS, draft);
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // Insert/Update emails
+                insertEmailRecord(conn, draft, true);
+
+                // Insert/Update recipient draft
+                String sqlRec = "INSERT INTO email_recipients (email_id, recipient, rec_type, folder, owner, is_read, is_starred) "
+                        + "VALUES (?, ?, 'SENDER', 'DRAFTS', ?, TRUE, FALSE) "
+                        + "ON DUPLICATE KEY UPDATE folder = 'DRAFTS'";
+                try (PreparedStatement stmt = conn.prepareStatement(sqlRec)) {
+                    stmt.setString(1, draft.getId());
+                    stmt.setString(2, username);
+                    stmt.setString(3, username);
+                    stmt.executeUpdate();
+                }
+
+                insertAttachments(conn, draft.getId(), draft.getAttachments());
+
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                conn.rollback();
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            return false;
+        }
     }
 
     /**
-     * Tìm kiếm email theo từ khóa trong tiêu đề, nội dung hoặc người gửi
+     * Tìm kiếm email theo từ khóa
      */
     public synchronized List<Email> searchMail(String username, String keyword) {
         if (username == null || keyword == null || keyword.trim().isEmpty()) {
             return Collections.emptyList();
         }
-        String lowerKey = keyword.trim().toLowerCase();
-        List<Email> allMails = new ArrayList<>();
-        allMails.addAll(loadFolderMails(username, MailFolder.INBOX));
-        allMails.addAll(loadFolderMails(username, MailFolder.SENT));
-        allMails.addAll(loadFolderMails(username, MailFolder.DRAFTS));
+        List<Email> list = new ArrayList<>();
+        String pattern = "%" + keyword.trim().toLowerCase() + "%";
+        String sql = "SELECT e.*, r.folder, r.is_read AS rec_read, r.is_starred AS rec_starred "
+                + "FROM emails e "
+                + "JOIN email_recipients r ON e.id = r.email_id "
+                + "WHERE r.owner = ? AND r.folder != 'TRASH' AND ("
+                + "LOWER(e.subject) LIKE ? OR LOWER(e.body) LIKE ? OR LOWER(e.sender) LIKE ?"
+                + ") ORDER BY e.timestamp_order DESC";
 
-        return allMails.stream()
-                .filter(m -> (m.getSubject() != null && m.getSubject().toLowerCase().contains(lowerKey))
-                        || (m.getBody() != null && m.getBody().toLowerCase().contains(lowerKey))
-                        || (m.getSender() != null && m.getSender().toLowerCase().contains(lowerKey))
-                        || (m.getRecipientsDisplay() != null && m.getRecipientsDisplay().toLowerCase().contains(lowerKey)))
-                .sorted((a, b) -> {
-                    String timeA = a.getSentAt() != null ? a.getSentAt() : "";
-                    String timeB = b.getSentAt() != null ? b.getSentAt() : "";
-                    return timeB.compareTo(timeA);
-                })
-                .collect(Collectors.toList());
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            stmt.setString(2, pattern);
+            stmt.setString(3, pattern);
+            stmt.setString(4, pattern);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToEmail(conn, rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi searchMail: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Đếm tổng số luồng thư trong một thư mục
+     */
+    public synchronized int getMailCount(String username, MailFolder folder) {
+        return listMails(username, folder, 1, Integer.MAX_VALUE).size();
+    }
+
+    /**
+     * Đếm số thư chưa đọc trong hộp thư đến
+     */
+    public synchronized int getUnreadInboxCount(String username) {
+        if (username == null) return 0;
+        String sql = "SELECT COUNT(*) FROM email_recipients WHERE owner = ? AND folder = 'INBOX' AND is_read = FALSE";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException ignored) {}
+        return 0;
     }
 
     /**
@@ -449,96 +520,254 @@ public class MailService {
         int todayEmails = 0;
         String todayPrefix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
-        try {
-            if (Files.exists(mailboxRoot)) {
-                try (var userStream = Files.list(mailboxRoot)) {
-                    for (Path userDir : userStream.toList()) {
-                        if (Files.isDirectory(userDir)) {
-                            Path sentFolder = userDir.resolve("sent");
-                            if (Files.exists(sentFolder)) {
-                                try (var mailStream = Files.list(sentFolder)) {
-                                    for (Path mailPath : mailStream.toList()) {
-                                        totalEmails++;
-                                        Email email = loadEmailFromFile(mailPath);
-                                        if (email != null && email.getSentAt() != null && email.getSentAt().startsWith(todayPrefix)) {
-                                            todayEmails++;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+        String sql = "SELECT COUNT(*) AS total, "
+                + "SUM(CASE WHEN sent_at LIKE ? THEN 1 ELSE 0 END) AS today "
+                + "FROM emails WHERE is_draft = FALSE";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, todayPrefix + "%");
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    totalEmails = rs.getInt("total");
+                    todayEmails = rs.getInt("today");
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (SQLException ignored) {}
 
         stats.put("totalEmails", totalEmails);
         stats.put("todayEmails", todayEmails);
         return stats;
     }
 
-    private Email findMailAnywhere(String mailId) {
-        if (mailId == null) return null;
-        try {
-            if (Files.exists(mailboxRoot)) {
-                try (var userStream = Files.list(mailboxRoot)) {
-                    for (Path userDir : userStream.toList()) {
-                        if (Files.isDirectory(userDir)) {
-                            for (MailFolder f : MailFolder.values()) {
-                                Path file = userDir.resolve(f.name().toLowerCase()).resolve(mailId + ".json");
-                                if (Files.exists(file)) {
-                                    return loadEmailFromFile(file);
-                                }
-                            }
-                        }
-                    }
+    // =========================================================================
+    // HELPER DATABASE METHODS
+    // =========================================================================
+
+    private void insertEmailRecord(Connection conn, Email email, boolean allowUpdate) throws SQLException {
+        String sql = "INSERT INTO emails (id, thread_id, gmail_message_id, sender, sender_email, subject, body, sent_at, timestamp_order, is_read, is_starred, is_draft, reply_to_id) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                + (allowUpdate ? "ON DUPLICATE KEY UPDATE subject=VALUES(subject), body=VALUES(body), sent_at=VALUES(sent_at), is_draft=VALUES(is_draft)" : "");
+
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email.getId());
+            stmt.setString(2, email.getThreadId());
+            stmt.setString(3, email.getGmailMessageId());
+            stmt.setString(4, email.getSender());
+            stmt.setString(5, email.getSenderEmail());
+            stmt.setString(6, email.getSubject());
+            stmt.setString(7, email.getBody());
+            stmt.setString(8, email.getSentAt());
+            stmt.setLong(9, email.getTimestamp());
+            stmt.setBoolean(10, email.isRead());
+            stmt.setBoolean(11, email.isStarred());
+            stmt.setBoolean(12, email.isDraft());
+            stmt.setString(13, email.getReplyToId());
+            stmt.executeUpdate();
+        }
+    }
+
+    private void insertRecipientRecord(Connection conn, String emailId, String recipient, String recType, String folder, String owner, boolean isRead, boolean isStarred) throws SQLException {
+        String sql = "INSERT INTO email_recipients (email_id, recipient, rec_type, folder, owner, is_read, is_starred) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, emailId);
+            stmt.setString(2, recipient);
+            stmt.setString(3, recType);
+            stmt.setString(4, folder);
+            stmt.setString(5, owner);
+            stmt.setBoolean(6, isRead);
+            stmt.setBoolean(7, isStarred);
+            stmt.executeUpdate();
+        }
+    }
+
+    private void insertAttachments(Connection conn, String emailId, List<Attachment> attachments) throws SQLException {
+        if (attachments == null || attachments.isEmpty()) return;
+        String sql = "INSERT INTO attachments (id, email_id, filename, file_size, content_type, uploaded_by, uploaded_at) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE filename=VALUES(filename)";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            for (Attachment att : attachments) {
+                stmt.setString(1, att.getId());
+                stmt.setString(2, emailId);
+                stmt.setString(3, att.getFilename());
+                stmt.setLong(4, att.getSize());
+                stmt.setString(5, att.getContentType());
+                stmt.setString(6, att.getUploadedBy());
+                stmt.setString(7, att.getUploadedAt());
+                stmt.addBatch();
+            }
+            stmt.executeBatch();
+        }
+    }
+
+    private List<Email> loadFolderEmails(String username, MailFolder folder) {
+        List<Email> list = new ArrayList<>();
+        String sql;
+        if (folder == MailFolder.STARRED) {
+            sql = "SELECT e.*, r.folder, r.is_read AS rec_read, r.is_starred AS rec_starred "
+                    + "FROM emails e "
+                    + "JOIN email_recipients r ON e.id = r.email_id "
+                    + "WHERE r.owner = ? AND r.folder != 'TRASH' AND r.is_starred = TRUE "
+                    + "ORDER BY e.timestamp_order DESC";
+        } else {
+            sql = "SELECT e.*, r.folder, r.is_read AS rec_read, r.is_starred AS rec_starred "
+                    + "FROM emails e "
+                    + "JOIN email_recipients r ON e.id = r.email_id "
+                    + "WHERE r.owner = ? AND r.folder = ? "
+                    + "ORDER BY e.timestamp_order DESC";
+        }
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            if (folder != MailFolder.STARRED) {
+                stmt.setString(2, folder.name());
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToEmail(conn, rs));
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            System.err.println("[MailService] Lỗi loadFolderEmails: " + e.getMessage());
         }
+        return list;
+    }
+
+    private Email mapResultSetToEmail(Connection conn, ResultSet rs) throws SQLException {
+        Email email = new Email();
+        String id = rs.getString("id");
+        email.setId(id);
+        email.setThreadId(rs.getString("thread_id"));
+        email.setGmailMessageId(rs.getString("gmail_message_id"));
+        email.setSender(rs.getString("sender"));
+        email.setSenderEmail(rs.getString("sender_email"));
+        email.setSubject(rs.getString("subject"));
+        email.setBody(rs.getString("body"));
+        email.setSentAt(rs.getString("sent_at"));
+        email.setTimestamp(rs.getLong("timestamp_order"));
+        email.setDraft(rs.getBoolean("is_draft"));
+        email.setReplyToId(rs.getString("reply_to_id"));
+
+        // Lấy trạng thái folder/read/starred từ bảng email_recipients
+        try {
+            String folderStr = rs.getString("folder");
+            if (folderStr != null) {
+                email.setFolder(MailFolder.valueOf(folderStr));
+            }
+            email.setRead(rs.getBoolean("rec_read"));
+            email.setStarred(rs.getBoolean("rec_starred"));
+        } catch (Exception ignored) {
+            email.setRead(rs.getBoolean("is_read"));
+            email.setStarred(rs.getBoolean("is_starred"));
+        }
+
+        // Tải danh sách người nhận
+        loadRecipientsForEmail(conn, email);
+
+        // Tải danh sách file đính kèm
+        loadAttachmentsForEmail(conn, email);
+
+        return email;
+    }
+
+    private void loadRecipientsForEmail(Connection conn, Email email) {
+        String sql = "SELECT recipient, rec_type FROM email_recipients WHERE email_id = ? AND rec_type != 'SENDER'";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email.getId());
+            try (ResultSet rs = stmt.executeQuery()) {
+                List<String> to = new ArrayList<>();
+                List<String> cc = new ArrayList<>();
+                List<String> bcc = new ArrayList<>();
+                while (rs.next()) {
+                    String rec = rs.getString("recipient");
+                    String type = rs.getString("rec_type");
+                    if ("CC".equalsIgnoreCase(type)) {
+                        if (!cc.contains(rec)) cc.add(rec);
+                    } else if ("BCC".equalsIgnoreCase(type)) {
+                        if (!bcc.contains(rec)) bcc.add(rec);
+                    } else {
+                        if (!to.contains(rec)) to.add(rec);
+                    }
+                }
+                email.setRecipients(to);
+                email.setCc(cc);
+                email.setBcc(bcc);
+            }
+        } catch (SQLException ignored) {}
+    }
+
+    private void loadAttachmentsForEmail(Connection conn, Email email) {
+        String sql = "SELECT id, filename, file_size, content_type, uploaded_by, uploaded_at FROM attachments WHERE email_id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email.getId());
+            try (ResultSet rs = stmt.executeQuery()) {
+                List<Attachment> atts = new ArrayList<>();
+                while (rs.next()) {
+                    Attachment att = new Attachment(
+                            rs.getString("id"),
+                            rs.getString("filename"),
+                            rs.getLong("file_size"),
+                            rs.getString("content_type"),
+                            rs.getString("uploaded_by"),
+                            rs.getString("uploaded_at")
+                    );
+                    atts.add(att);
+                }
+                email.setAttachments(atts);
+            }
+        } catch (SQLException ignored) {}
+    }
+
+    private String findThreadIdOfMail(String mailId) {
+        String sql = "SELECT thread_id FROM emails WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, mailId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getString("thread_id");
+            }
+        } catch (SQLException ignored) {}
         return null;
     }
 
-    // Helper functions
-    private boolean saveEmailToFile(String username, MailFolder folder, Email email) {
-        Path folderPath = getUserFolder(username, folder);
-        Path filePath = folderPath.resolve(email.getId() + ".json");
-        try {
-            String json = JsonUtil.toJson(email);
-            Files.writeString(filePath, json, StandardCharsets.UTF_8);
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
+    private Email cloneEmail(Email src) {
+        Email copy = new Email();
+        copy.setId(src.getId());
+        copy.setThreadId(src.getThreadId());
+        copy.setGmailMessageId(src.getGmailMessageId());
+        copy.setSender(src.getSender());
+        copy.setSenderEmail(src.getSenderEmail());
+        copy.setRecipients(new ArrayList<>(src.getRecipients()));
+        copy.setCc(new ArrayList<>(src.getCc()));
+        copy.setBcc(new ArrayList<>(src.getBcc()));
+        copy.setSubject(src.getSubject());
+        copy.setBody(src.getBody());
+        copy.setSentAt(src.getSentAt());
+        copy.setTimestamp(src.getTimestamp());
+        copy.setFolder(src.getFolder());
+        copy.setDraft(src.isDraft());
+        copy.setReplyToId(src.getReplyToId());
+        copy.setAttachments(new ArrayList<>(src.getAttachments()));
+        return copy;
     }
 
-    private Email loadEmailFromFile(Path filePath) {
-        try {
-            String json = Files.readString(filePath, StandardCharsets.UTF_8);
-            return JsonUtil.fromJson(json, Email.class);
-        } catch (Exception e) {
-            return null;
+    private int compareMailsChronological(Email a, Email b) {
+        if (a.getTimestamp() > 0 && b.getTimestamp() > 0 && a.getTimestamp() != b.getTimestamp()) {
+            return Long.compare(a.getTimestamp(), b.getTimestamp());
         }
+        String timeA = a.getSentAt() != null ? a.getSentAt() : "";
+        String timeB = b.getSentAt() != null ? b.getSentAt() : "";
+        int cmp = timeA.compareTo(timeB);
+        if (cmp != 0) return cmp;
+        if (b.getReplyToId() != null && b.getReplyToId().equalsIgnoreCase(a.getId())) return -1;
+        if (a.getReplyToId() != null && a.getReplyToId().equalsIgnoreCase(b.getId())) return 1;
+        return 0;
     }
 
-    private List<Email> loadFolderMails(String username, MailFolder folder) {
-        Path folderPath = getUserFolder(username, folder);
-        List<Email> list = new ArrayList<>();
-        if (!Files.exists(folderPath)) return list;
-        try (var stream = Files.list(folderPath)) {
-            for (Path p : stream.filter(p -> p.toString().endsWith(".json")).toList()) {
-                Email email = loadEmailFromFile(p);
-                if (email != null) {
-                    list.add(email);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return list;
+    private int compareMailsNewestFirst(Email a, Email b) {
+        return compareMailsChronological(b, a);
     }
 }
