@@ -18,6 +18,7 @@ public class Email implements Serializable {
     private long timestamp = System.currentTimeMillis(); // Mốc thời gian đơn điệu để sắp xếp chính xác luồng
 
     private String sender;
+    private String senderEmail;
     private List<String> recipients = new ArrayList<>();
     private List<String> cc = new ArrayList<>();
     private List<String> bcc = new ArrayList<>();
@@ -123,6 +124,9 @@ public class Email implements Serializable {
 
     public String getSender() { return sender; }
     public void setSender(String sender) { this.sender = sender; }
+
+    public String getSenderEmail() { return senderEmail; }
+    public void setSenderEmail(String senderEmail) { this.senderEmail = senderEmail; }
 
     public List<String> getRecipients() { return recipients; }
     public void setRecipients(List<String> recipients) { this.recipients = recipients != null ? recipients : new ArrayList<>(); }
