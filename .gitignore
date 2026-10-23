@@ -36,3 +36,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# Google Cloud OAuth Credentials
+src/main/resources/client_secret_*.json
