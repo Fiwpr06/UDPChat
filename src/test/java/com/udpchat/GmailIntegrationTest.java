@@ -68,8 +68,29 @@ public class GmailIntegrationTest {
         // Direct email lookup returns itself
         assertEquals("direct@gmail.com", authService.getUserEmail("direct@gmail.com"));
 
+        // Reverse lookup: email -> username
+        assertEquals(testUser, authService.getUsernameByEmail("real_person@gmail.com"));
+
         // Cleanup
-        Files.deleteIfExists(Path.of("server-data", "users", testUser + ".txt"));
+        try (var conn = com.udpchat.server.database.DatabaseManager.getConnection();
+             var stmt = conn.prepareStatement("DELETE FROM users WHERE username = ?")) {
+            stmt.setString(1, testUser);
+            stmt.executeUpdate();
+        }
+    }
+
+    @Test
+    public void testOAuthConfigAndAuthUrl() {
+        com.udpchat.server.service.OAuthConfig config = new com.udpchat.server.service.OAuthConfig();
+        config.setClientId("test-client-id-12345");
+        config.setClientSecret("test-secret-67890");
+        assertTrue(config.isConfigured());
+
+        String authUrl = config.buildAuthUrl("http://127.0.0.1:8888/callback", "test_user");
+        assertNotNull(authUrl);
+        assertTrue(authUrl.contains("test-client-id-12345"));
+        assertTrue(authUrl.contains("http%3A%2F%2F127.0.0.1%3A8888%2Fcallback"));
+        assertTrue(authUrl.contains("response_type=code"));
     }
 
     @Test
