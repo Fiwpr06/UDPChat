@@ -5,6 +5,7 @@ import com.udpchat.server.service.AuthService;
 import com.udpchat.server.service.FileService;
 import com.udpchat.server.service.GmailGateway;
 import com.udpchat.server.service.MailService;
+import com.udpchat.server.service.OAuthService;
 import com.udpchat.shared.model.Email;
 import com.udpchat.shared.model.MailFolder;
 import com.udpchat.shared.protocol.Command;
@@ -39,7 +40,7 @@ public class RequestHandler {
         this.mailService = mailService;
         this.fileService = fileService;
         this.gmailGateway = gmailGateway;
-        this.logger = logger;
+        this.logger = logger != null ? logger : System.out::println;
     }
 
     public void handle(String rawMessage, InetAddress senderAddr, int senderPort, DatagramSocket serverSocket) {
@@ -52,21 +53,27 @@ public class RequestHandler {
 
             switch (cmd) {
                 case REGISTER: {
-                    String regStatus = authService.register(params[0], params[1], senderAddr);
+                    String username = params.length > 0 ? params[0] : "";
+                    String password = params.length > 1 ? params[1] : "";
+                    String email = params.length > 2 ? params[2] : null;
+                    String regStatus = authService.register(username, password, senderAddr != null ? AuthService.normalizeAddress(senderAddr) : "127.0.0.1", email);
                     boolean regOk = regStatus.contains("Thành công") || regStatus.startsWith("Success");
                     UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse(regOk ? "OK" : "ERROR", regStatus), senderAddr, senderPort);
-                    logger.accept("Đăng ký tài khoản: " + params[0] + " từ " + sessionKey + " -> " + (regOk ? "Thành công" : regStatus));
+                    logger.accept("Đăng ký tài khoản: " + username + " từ " + sessionKey + " -> " + (regOk ? "Thành công" : regStatus));
                     break;
                 }
                 case LOGIN: {
-                    int listenerPort = Integer.parseInt(params[2]);
-                    String loginStatus = authService.login(params[0], params[1], senderAddr, senderPort, listenerPort);
+                    String username = params.length > 0 ? params[0] : "";
+                    String password = params.length > 1 ? params[1] : "";
+                    int listenerPort = params.length > 2 ? Integer.parseInt(params[2]) : senderPort;
+                    String loginStatus = authService.login(username, password, senderAddr, senderPort, listenerPort);
                     boolean loginOk = loginStatus.contains("Thành công") || loginStatus.startsWith("Success");
-                    UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse(loginOk ? "OK" : "ERROR", loginStatus), senderAddr, senderPort);
+                    String userEmail = loginOk ? authService.getUserEmail(username) : "";
+                    UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse(loginOk ? "OK" : "ERROR", loginStatus, userEmail != null ? userEmail : ""), senderAddr, senderPort);
                     if (loginOk) {
-                        logger.accept("Người dùng '" + params[0] + "' đăng nhập thành công (Cổng nhận: " + listenerPort + ")");
+                        logger.accept("Người dùng '" + username + "' đăng nhập thành công (Cổng nhận: " + listenerPort + ")");
                     } else {
-                        logger.accept("Đăng nhập thất bại cho '" + params[0] + "': " + loginStatus);
+                        logger.accept("Đăng nhập thất bại cho '" + username + "': " + loginStatus);
                     }
                     break;
                 }
@@ -77,13 +84,93 @@ public class RequestHandler {
                     logger.accept("Người dùng '" + (logoutUser != null ? logoutUser : sessionKey) + "' đã đăng xuất.");
                     break;
                 }
+                case OAUTH_START: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String redirectUri = params.length > 0 ? params[0] : "http://127.0.0.1:8888/callback";
+                        if (gmailGateway != null && gmailGateway.getOAuthService() != null && gmailGateway.getOAuthService().getConfig().isConfigured()) {
+                            String authUrl = gmailGateway.getOAuthService().getConfig().buildAuthUrl(redirectUri, authService.getUsername(sessionKey));
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", authUrl), senderAddr, senderPort);
+                        } else {
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Máy chủ chưa cấu hình Client ID / Secret trong client_secret.json"), senderAddr, senderPort);
+                        }
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
+                case OAUTH_CALLBACK: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String user = authService.getUsername(sessionKey);
+                        String authCode = params.length > 0 ? params[0] : "";
+                        String redirectUri = params.length > 1 ? params[1] : "";
+                        if (gmailGateway != null && gmailGateway.getOAuthService() != null) {
+                            OAuthService.TokenResult result = gmailGateway.getOAuthService().exchangeCode(authCode, redirectUri);
+                            if (result.success) {
+                                gmailGateway.getOAuthService().saveTokens(user, result.email, result.accessToken, result.refreshToken, result.expiresIn);
+                                logger.accept("[OAuth 2.0] Người dùng '" + user + "' đã liên kết thành công với Gmail: " + result.email);
+                                UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", result.email), senderAddr, senderPort);
+                            } else {
+                                logger.accept("[OAuth 2.0] Thất bại khi đổi token cho '" + user + "': " + result.errorMessage);
+                                UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", result.errorMessage), senderAddr, senderPort);
+                            }
+                        } else {
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Dịch vụ OAuth chưa sẵn sàng"), senderAddr, senderPort);
+                        }
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
+                case OAUTH_STATUS: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String user = authService.getUsername(sessionKey);
+                        if (gmailGateway != null && gmailGateway.getOAuthService() != null && gmailGateway.getOAuthService().isLinked(user)) {
+                            String email = gmailGateway.getOAuthService().getLinkedEmail(user);
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", "LINKED", email != null ? email : ""), senderAddr, senderPort);
+                        } else {
+                            String email = authService.getUserEmail(user);
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", "NOT_LINKED", email != null ? email : ""), senderAddr, senderPort);
+                        }
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
+                case SET_EMAIL: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String user = authService.getUsername(sessionKey);
+                        String email = params.length > 0 ? params[0].trim() : "";
+                        boolean updated = authService.setUserEmail(user, email);
+                        if (updated) {
+                            logger.accept("Người dùng '" + user + "' cập nhật địa chỉ email: " + email);
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", email), senderAddr, senderPort);
+                        } else {
+                            UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Không thể cập nhật email"), senderAddr, senderPort);
+                        }
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
+                case GET_EMAIL: {
+                    if (authService.isLoggedIn(sessionKey)) {
+                        String user = authService.getUsername(sessionKey);
+                        String email = authService.getUserEmail(user);
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", email != null ? email : ""), senderAddr, senderPort);
+                    } else {
+                        UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("ERROR", "Chưa đăng nhập"), senderAddr, senderPort);
+                    }
+                    break;
+                }
                 case SEND_MAIL: {
                     if (authService.isLoggedIn(sessionKey)) {
                         String sender = authService.getUsername(sessionKey);
                         String emailJson = JsonUtil.decodeBase64(params[0]);
                         Email email = JsonUtil.fromJson(emailJson, Email.class);
                         if (email != null) {
+                            String senderEmail = authService.getUserEmail(sender);
                             email.setSender(sender);
+                            email.setSenderEmail(senderEmail);
                             boolean sent = mailService.sendMail(email);
                             if (sent) {
                                 UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", email.getId()), senderAddr, senderPort);
@@ -92,8 +179,8 @@ public class RequestHandler {
                                 // Push NEW_MAIL tới tất cả người nhận đang online
                                 notifyOnlineRecipients(email, serverSocket);
 
-                                // Chuyển tiếp ra Gmail thật qua SMTP nếu Gateway được kích hoạt
-                                if (gmailGateway != null && gmailGateway.getConfig() != null && gmailGateway.getConfig().isEnabled()) {
+                                // Chuyển tiếp ra Gmail thật qua SMTP (Ưu tiên XOAUTH2 của sender)
+                                if (gmailGateway != null) {
                                     Map<String, String> userEmails = authService.getAllUserEmails();
                                     gmailGateway.sendViaSmtp(email, userEmails);
                                 }
@@ -272,7 +359,6 @@ public class RequestHandler {
                         String dlFile = params[0];
                         String username = authService.getUsername(sessionKey);
 
-                        // Chờ tối đa 2s trong trường hợp tệp vừa tải lên xong và đang được lưu đĩa
                         int waitCount = 0;
                         while (!fileService.fileExists(dlFile) && waitCount < 20) {
                             try { Thread.sleep(100); } catch (InterruptedException ignored) {}
@@ -326,11 +412,13 @@ public class RequestHandler {
         String pushMsg = ProtocolHelper.buildPush(Command.NEW_MAIL, email.getSender(), email.getSubject(), email.getId());
 
         for (ClientSession session : authService.getOnlineSessions()) {
-            if (all.contains(session.getUsername())) {
+            String sessUser = session.getUsername();
+            String sessEmail = authService.getUserEmail(sessUser);
+            if (all.contains(sessUser) || (sessEmail != null && all.contains(sessEmail))) {
                 try {
                     UDPUtil.sendString(serverSocket, pushMsg, session.getAddress(), session.getListenerPort());
                 } catch (Exception e) {
-                    logger.accept("Lỗi gửi thông báo thư mới tới " + session.getUsername() + ": " + e.getMessage());
+                    logger.accept("Lỗi gửi thông báo thư mới tới " + sessUser + ": " + e.getMessage());
                 }
             }
         }
