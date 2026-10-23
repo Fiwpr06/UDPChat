@@ -4,6 +4,11 @@ module com.udpchat {
     requires java.desktop;
     requires com.google.gson;
     requires jakarta.mail;
+    requires java.sql;
+    requires java.net.http;
+    requires jdk.httpserver;
+    requires com.zaxxer.hikari;
+    requires org.mariadb.jdbc;
 
     opens com.udpchat.client.controller to javafx.fxml;
     opens com.udpchat.server.controller to javafx.fxml;
