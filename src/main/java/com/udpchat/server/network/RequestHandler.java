@@ -173,7 +173,18 @@ public class RequestHandler {
                             String senderEmail = authService.getUserEmail(sender);
                             email.setSender(sender);
                             email.setSenderEmail(senderEmail);
-                            boolean sent = mailService.sendMail(email);
+
+                            // Tạo bản dùng riêng cho ứng dụng
+                            Email appEmail = JsonUtil.fromJson(
+                                    JsonUtil.toJson(email),
+                                    Email.class
+                            );
+
+                            String internalText = "\n\n[Thông tin chỉ hiển thị trong UDPChat]";
+                            appEmail.setBody(appEmail.getBody() + internalText);
+
+                            // Lưu bản có text nội bộ vào app
+                            boolean sent = mailService.sendMail(appEmail);
                             if (sent) {
                                 UDPUtil.sendString(serverSocket, ProtocolHelper.buildResponse("OK", email.getId()), senderAddr, senderPort);
                                 logger.accept("[Thư mới từ " + sender + "]: Chủ đề: '" + email.getSubject() + "' gửi tới: " + email.getRecipientsDisplay());

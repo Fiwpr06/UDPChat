@@ -47,12 +47,12 @@
     <HBox styleClass="card-panel" spacing="24" alignment="CENTER_LEFT">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="🗄️ CSDL MySQL:" styleClass="input-label"/>
+            <Label text="CSDL MySQL:" styleClass="input-label"/>
             <Region fx:id="dbStatusIndicator" styleClass="status-indicator, status-online" prefWidth="10" prefHeight="10"/>
             <Label fx:id="dbStatusLabel" text="Đã kết nối (udp_mail_chat)" styleClass="user-status-text"/>
         </HBox>
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="🔑 Google OAuth 2.0:" styleClass="input-label"/>
+            <Label text="Google OAuth 2.0:" styleClass="input-label"/>
             <Region fx:id="oauthStatusIndicator" styleClass="status-indicator" prefWidth="10" prefHeight="10"/>
             <Label fx:id="oauthStatusLabel" text="Đang kiểm tra..." styleClass="user-status-text"/>
         </HBox>
