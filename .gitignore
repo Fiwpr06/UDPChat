@@ -1,6 +1,8 @@
 target/
 server-data/
 client-cache/
+client_cache/
+legacy-code/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

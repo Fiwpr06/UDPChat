@@ -12,11 +12,17 @@ module com.udpchat {
 
     opens com.udpchat.client.controller to javafx.fxml;
     opens com.udpchat.server.controller to javafx.fxml;
-    opens com.udpchat.shared.model to com.google.gson;
+    opens com.udpchat.common.model to com.google.gson, javafx.base;
 
     exports com.udpchat.client;
     exports com.udpchat.server;
-    exports com.udpchat.shared.model;
-    exports com.udpchat.shared.protocol;
-    exports com.udpchat.shared.util;
+    exports com.udpchat.common.model;
+    exports com.udpchat.common.util;
+    exports com.udpchat.database;
+    exports com.udpchat.server.smtp;
+    exports com.udpchat.server.pop3;
+    exports com.udpchat.server.service;
+    exports com.udpchat.client.smtp;
+    exports com.udpchat.client.pop3;
+    exports com.udpchat.client.service;
 }

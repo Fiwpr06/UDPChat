@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
@@ -12,95 +12,80 @@
         <Insets top="16" right="16" bottom="16" left="16"/>
     </padding>
 
-    <!-- Title Bar Header -->
+    <!-- Header -->
     <HBox alignment="CENTER_LEFT" spacing="12" styleClass="card-panel">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <Label text="✉ MAIL" styleClass="brand-icon-badge"/>
+        <Label text="âœ‰ SMTP / POP3" styleClass="brand-icon-badge"/>
         <VBox spacing="2">
-            <Label text="UDP MAIL SERVER" styleClass="brand-title-medium"/>
-            <Label text="Máy chủ Thư điện tử &amp; Quản lý tệp đính kèm thuần UDP (Mô hình Gmail)" styleClass="brand-subtitle"/>
+            <Label text="MAIL SERVER (LAB 3)" styleClass="brand-title-medium"/>
+            <Label text="MÃ¡y chá»§ ThÆ° Ä‘iá»‡n tá»­ TCP Socket: Gá»­i qua SMTP (2525) | Nháº­n qua POP3 (1110)" styleClass="brand-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
         <HBox alignment="CENTER" spacing="8" styleClass="status-badge-container">
             <Region fx:id="statusIndicator" styleClass="status-indicator, status-offline" prefWidth="10" prefHeight="10"/>
-            <Label fx:id="statusLabel" text="Đã dừng" styleClass="status-badge-text"/>
+            <Label fx:id="statusLabel" text="ÄÃ£ dá»«ng" styleClass="status-badge-text"/>
         </HBox>
     </HBox>
 
-    <!-- Server Control & IP Display -->
-    <HBox styleClass="card-panel" spacing="12" alignment="CENTER_LEFT">
+    <!-- Server Network & Port Control -->
+    <HBox styleClass="card-panel" spacing="16" alignment="CENTER_LEFT">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         
-        <Label text="IP Máy chủ:" styleClass="input-label"/>
+        <Label text="IP MÃ¡y chá»§:" styleClass="input-label"/>
         <Label fx:id="ipLabel" text="127.0.0.1" styleClass="badge-ip"/>
-        <Button fx:id="copyIpButton" text="Sao chép IP" onAction="#onCopyIp" styleClass="button-secondary" minWidth="-Infinity"/>
+        <Button text="Sao chÃ©p IP" onAction="#onCopyIp" styleClass="button-secondary"/>
 
         <Region HBox.hgrow="ALWAYS"/>
         
-        <Label text="Cổng (Port):" styleClass="input-label"/>
-        <TextField fx:id="portField" text="8888" prefWidth="85" styleClass="form-input"/>
-        <Button fx:id="startButton" text="Khởi động Server" onAction="#onStart" styleClass="button-primary" minWidth="-Infinity"/>
-        <Button fx:id="stopButton" text="Dừng Server" onAction="#onStop" styleClass="button-danger" minWidth="-Infinity"/>
+        <Label text="Cá»•ng SMTP:" styleClass="input-label"/>
+        <TextField fx:id="smtpPortField" text="2525" prefWidth="75" styleClass="form-input"/>
+
+        <Label text="Cá»•ng POP3:" styleClass="input-label"/>
+        <TextField fx:id="pop3PortField" text="1110" prefWidth="75" styleClass="form-input"/>
+
+        <Button fx:id="startButton" text="â–¶ Khá»Ÿi Ä‘á»™ng" onAction="#onStart" styleClass="button-primary"/>
+        <Button fx:id="stopButton" text="â¹ Dá»«ng" onAction="#onStop" styleClass="button-danger"/>
     </HBox>
 
-    <!-- System & Integrations Status Panel -->
-    <HBox styleClass="card-panel" spacing="24" alignment="CENTER_LEFT">
-        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="CSDL MySQL:" styleClass="input-label"/>
-            <Region fx:id="dbStatusIndicator" styleClass="status-indicator, status-online" prefWidth="10" prefHeight="10"/>
-            <Label fx:id="dbStatusLabel" text="Đã kết nối (udp_mail_chat)" styleClass="user-status-text"/>
-        </HBox>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="Google OAuth 2.0:" styleClass="input-label"/>
-            <Region fx:id="oauthStatusIndicator" styleClass="status-indicator" prefWidth="10" prefHeight="10"/>
-            <Label fx:id="oauthStatusLabel" text="Đang kiểm tra..." styleClass="user-status-text"/>
-        </HBox>
-        <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="btnReloadOAuth" text="🔄 Tải lại cấu hình OAuth" onAction="#onReloadOAuth" styleClass="button-secondary" minWidth="-Infinity"/>
-    </HBox>
-
-    <!-- Statistics Panel -->
+    <!-- Database & Gmail Forwarder Integration -->
     <HBox styleClass="card-panel" spacing="20" alignment="CENTER_LEFT">
-        <padding><Insets top="10" right="16" bottom="10" left="16"/></padding>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="✉ Tổng số thư:" styleClass="input-label"/>
-            <Label fx:id="totalEmailsLabel" text="0" styleClass="badge-ip"/>
-        </HBox>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="📅 Thư hôm nay:" styleClass="input-label"/>
-            <Label fx:id="todayEmailsLabel" text="0" styleClass="badge-ip"/>
-        </HBox>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="📎 Tệp đính kèm:" styleClass="input-label"/>
-            <Label fx:id="attachmentsCountLabel" text="0" styleClass="badge-ip"/>
-        </HBox>
-        <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="💾 Dung lượng lưu trữ:" styleClass="input-label"/>
-            <Label fx:id="storageSizeLabel" text="0 KB" styleClass="badge-ip"/>
-        </HBox>
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+
+        <VBox spacing="6">
+            <Label text="CÆ¡ sá»Ÿ dá»¯ liá»‡u (Dual Database):" styleClass="input-label"/>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Region fx:id="dbStatusIndicator" styleClass="status-indicator, status-online" prefWidth="10" prefHeight="10"/>
+                <Label fx:id="dbStatusLabel" text="Äang khá»Ÿi táº¡o..." styleClass="user-status-text"/>
+            </HBox>
+        </VBox>
+
+        <Separator orientation="VERTICAL"/>
+
+        <VBox spacing="6" HBox.hgrow="ALWAYS">
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <CheckBox fx:id="cbEnableGmail" text="Chuyá»ƒn tiáº¿p ra Gmail (náº¿u ngÆ°á»i nháº­n lÃ  @gmail.com)" styleClass="input-label"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="ðŸ’¾ LÆ°u cáº¥u hÃ¬nh Gmail" onAction="#onSaveGmailConfig" styleClass="button-secondary"/>
+            </HBox>
+            <HBox spacing="12" alignment="CENTER_LEFT">
+                <Label text="TÃ i khoáº£n Gmail:" styleClass="info-label"/>
+                <TextField fx:id="gmailAccountField" promptText="vi-du@gmail.com" prefWidth="200" styleClass="form-input"/>
+                <Label text="Máº­t kháº©u á»©ng dá»¥ng (16 kÃ½ tá»±):" styleClass="info-label"/>
+                <PasswordField fx:id="gmailAppPassField" promptText="xxxx xxxx xxxx xxxx" prefWidth="180" styleClass="form-input"/>
+            </HBox>
+        </VBox>
     </HBox>
 
-    <!-- Online Clients -->
-    <VBox styleClass="card-panel" spacing="8">
+    <!-- Real-time Console Log -->
+    <VBox styleClass="card-panel" spacing="8" VBox.vgrow="ALWAYS">
         <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label fx:id="onlineCountLabel" text="Người dùng đang online: 0" styleClass="card-title"/>
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label text="ðŸ“‹ Nháº­t kÃ½ hoáº¡t Ä‘á»™ng giao thá»©c (SMTP &amp; POP3):" styleClass="card-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="copyClientIpButton" text="Sao chép IP Client chọn" onAction="#onCopyClientIp" styleClass="button-secondary" minWidth="-Infinity"/>
+            <Label fx:id="statsLabel" text="Tá»•ng sá»‘ thÆ°: 0" styleClass="caption-muted"/>
+            <Button text="ðŸ—‘ï¸ XÃ³a log" onAction="#onClearLog" styleClass="button-secondary"/>
         </HBox>
-        <ListView fx:id="clientListView" prefHeight="100" styleClass="modern-list-view"/>
-    </VBox>
-
-    <!-- Activity Log -->
-    <VBox fx:id="logContainer" styleClass="card-panel" spacing="8" VBox.vgrow="ALWAYS">
-        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="Nhật Ký Máy Chủ &amp; Giao Thức UDP" styleClass="card-title"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="toggleLogButton" text="Ẩn/Hiện Log" onAction="#onToggleLog" styleClass="button-secondary" minWidth="-Infinity"/>
-            <Button fx:id="clearLogButton" text="Xóa Log" onAction="#onClearLog" styleClass="button-secondary" minWidth="-Infinity"/>
-        </HBox>
-        <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area, mono-text"/>
+        <TextArea fx:id="logArea" editable="false" wrapText="true" styleClass="log-area" VBox.vgrow="ALWAYS"/>
     </VBox>
 </VBox>
+
